@@ -1,5 +1,9 @@
 package com.samedtevin.ifx.login.ui
 
+import android.widget.Toast
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +55,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.samedtevin.ifx.auth.FirebaseAuthService
+import com.samedtevin.ifx.auth.AuthResult
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.samedtevin.ifx.R
 import com.samedtevin.ifx.ui.theme.IFXTheme
 import com.samedtevin.ifx.ui.theme.IfxBlack
@@ -58,21 +69,17 @@ import com.samedtevin.ifx.ui.theme.IfxLime
 import com.samedtevin.ifx.ui.theme.Inter
 
 /**
- * High-fidelity Login section matching the IFX design specifications:
- * - Back button navigation
- * - Bold title "Welcome back" and subtitle "Sign in to pick up your Sparks."
- * - Outlined Email & Password fields with floating labels and eye visibility toggle
- * - "Forgot password?" right-aligned underlined action
- * - High-contrast electric lime "Sign in" primary button
- * - "or continue with" divider
- * - 3 equal-width social/auth buttons: Google, Microsoft, Guest
- * - "New to ifx? Create account" footer
+ * Modern IFX Login Screen with Regex Validation:
+ * - Empty by default, user enters credentials
+ * - Email regex validation: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+ * - Password required validation
+ * - Working eye show/hide password toggle
  */
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    initialEmail: String = "alex@gmail.com",
-    initialPassword: String = "••••••••••",
+    initialEmail: String = "",
+    initialPassword: String = "",
     onBackClick: () -> Unit = {},
     onSignInClick: (String, String) -> Unit = { _, _ -> },
     onForgotPasswordClick: () -> Unit = {},
@@ -85,7 +92,140 @@ fun LoginScreen(
     var password by rememberSaveable { mutableStateOf(initialPassword) }
     var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    var emailError by rememberSaveable { mutableStateOf<String?>(null) }
+    var passwordError by rememberSaveable { mutableStateOf<String?>(null) }
+    var generalError by rememberSaveable { mutableStateOf<String?>(null) }
+    var isLoading by rememberSaveable { mutableStateOf(false) }
+    var showUnverifiedDialog by rememberSaveable { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val emailRegex = remember { Regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    fun attemptSignIn() {
+        if (isLoading) return
+        val cleanEmail = email.trim()
+        val emailValid = cleanEmail.isNotBlank() && emailRegex.matches(cleanEmail)
+        val passValid = password.isNotBlank()
+
+        emailError = when {
+            cleanEmail.isBlank() -> "Email address is required."
+            !emailValid -> "Please enter a valid email address."
+            else -> null
+        }
+
+        passwordError = if (!passValid) "Password cannot be empty." else null
+
+        if (emailValid && passValid) {
+            keyboardController?.hide()
+            isLoading = true
+            generalError = null
+            coroutineScope.launch {
+                when (val result = FirebaseAuthService.loginWithEmail(cleanEmail, password)) {
+                    is AuthResult.Success -> {
+                        val isVerified = FirebaseAuthService.checkEmailVerified()
+                        isLoading = false
+                        if (!isVerified) {
+                            showUnverifiedDialog = true
+                        } else {
+                            onSignInClick(cleanEmail, password)
+                        }
+                    }
+                    is AuthResult.Error -> {
+                        isLoading = false
+                        when (result.exception) {
+                            is FirebaseAuthInvalidUserException -> {
+                                emailError = result.message
+                            }
+                            is FirebaseAuthInvalidCredentialsException -> {
+                                passwordError = result.message
+                            }
+                            else -> {
+                                generalError = result.message
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showUnverifiedDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnverifiedDialog = false },
+            title = {
+                Text(
+                    text = "Email Not Verified",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = IfxBlack
+                )
+            },
+            text = {
+                Text(
+                    text = "Your account (${email.trim()}) has not been verified yet. Please check your inbox (and spam folder) and click the verification link before logging in.",
+                    fontFamily = Inter,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    color = Color(0xFF4B5563)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            when (val res = FirebaseAuthService.resendEmailVerification()) {
+                                is AuthResult.Success -> {
+                                    Toast.makeText(context, "Verification email resent! Check your inbox.", Toast.LENGTH_LONG).show()
+                                }
+                                is AuthResult.Error -> {
+                                    Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = IfxLime,
+                        contentColor = IfxBlack
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        text = "Resend Email",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val verified = FirebaseAuthService.checkEmailVerified()
+                            if (verified) {
+                                showUnverifiedDialog = false
+                                Toast.makeText(context, "Email verified successfully!", Toast.LENGTH_SHORT).show()
+                                onSignInClick(email.trim(), password)
+                            } else {
+                                Toast.makeText(context, "Still not verified. Please click the link in your email.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        text = "I've Verified",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = IfxBlack
+                    )
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -95,7 +235,7 @@ fun LoginScreen(
             .navigationBarsPadding()
             .padding(horizontal = 24.dp)
     ) {
-        // 1. Top Back Button
+        // 1. Top Navigation Bar: Back Arrow
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -114,33 +254,38 @@ fun LoginScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
         // 2. Headline & Subtitle
         Text(
             text = "Welcome back",
             fontFamily = Inter,
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 32.sp,
-            lineHeight = 38.sp,
+            fontSize = 34.sp,
+            lineHeight = 40.sp,
             letterSpacing = (-0.5).sp,
             color = IfxBlack
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Sign in to pick up your Sparks.",
+            text = "Sign in to pick up where your Sparks left off.",
             fontFamily = Inter,
             fontWeight = FontWeight.Normal,
             fontSize = 15.sp,
             color = Color(0xFF6B7280)
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // 3. Email Input Field
+        // 3. Email Outlined Text Field with Regex Validation
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                if (emailError != null) emailError = null
+            },
             label = {
                 Text(
                     text = "Email",
@@ -149,6 +294,16 @@ fun LoginScreen(
                     fontSize = 14.sp
                 )
             },
+            placeholder = {
+                Text(
+                    text = "name@example.com",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    color = Color(0xFF9CA3AF)
+                )
+            },
+            isError = emailError != null,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             singleLine = true,
@@ -159,22 +314,33 @@ fun LoginScreen(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = IfxBlack,
                 unfocusedBorderColor = Color(0xFF9CA3AF),
+                errorBorderColor = Color(0xFFDC2626),
                 focusedLabelColor = IfxBlack,
                 unfocusedLabelColor = Color(0xFF6B7280),
                 focusedTextColor = IfxBlack,
                 unfocusedTextColor = IfxBlack,
-                cursorColor = IfxBlack,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent
+                cursorColor = IfxBlack
             )
         )
+        if (emailError != null) {
+            Text(
+                text = emailError ?: "",
+                fontFamily = Inter,
+                fontSize = 12.sp,
+                color = Color(0xFFDC2626),
+                modifier = Modifier.padding(start = 6.dp, top = 4.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. Password Input Field with Visibility Toggle
+        // 4. Password Outlined Text Field
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = {
+                password = it
+                if (passwordError != null) passwordError = null
+            },
             label = {
                 Text(
                     text = "Password",
@@ -183,19 +349,26 @@ fun LoginScreen(
                     fontSize = 14.sp
                 )
             },
+            placeholder = {
+                Text(
+                    text = "Enter your password",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    color = Color(0xFF9CA3AF)
+                )
+            },
+            isError = passwordError != null,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             singleLine = true,
-            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation('•'),
+            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
+                keyboardType = if (isPasswordVisible) KeyboardType.Text else KeyboardType.Password,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
-                onDone = {
-                    keyboardController?.hide()
-                    onSignInClick(email, password)
-                }
+                onDone = { attemptSignIn() }
             ),
             trailingIcon = {
                 IconButton(
@@ -213,16 +386,24 @@ fun LoginScreen(
             },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = IfxBlack,
-                unfocusedBorderColor = IfxBlack,
+                unfocusedBorderColor = Color(0xFF9CA3AF),
+                errorBorderColor = Color(0xFFDC2626),
                 focusedLabelColor = IfxBlack,
-                unfocusedLabelColor = IfxBlack,
+                unfocusedLabelColor = Color(0xFF6B7280),
                 focusedTextColor = IfxBlack,
                 unfocusedTextColor = IfxBlack,
-                cursorColor = IfxBlack,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent
+                cursorColor = IfxBlack
             )
         )
+        if (passwordError != null) {
+            Text(
+                text = passwordError ?: "",
+                fontFamily = Inter,
+                fontSize = 12.sp,
+                color = Color(0xFFDC2626),
+                modifier = Modifier.padding(start = 6.dp, top = 4.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -248,28 +429,56 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 6. Primary "Sign in" Action Button
+        if (generalError != null) {
+            Text(
+                text = generalError ?: "",
+                fontFamily = Inter,
+                fontSize = 13.sp,
+                color = Color(0xFFDC2626),
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+
+        // 6. Primary "Sign in" Action Button (Integrated with Firebase Auth)
         Button(
-            onClick = {
-                keyboardController?.hide()
-                onSignInClick(email, password)
-            },
+            onClick = { attemptSignIn() },
+            enabled = !isLoading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = IfxLime,
-                contentColor = IfxBlack
+                contentColor = IfxBlack,
+                disabledContainerColor = IfxLime.copy(alpha = 0.6f),
+                disabledContentColor = IfxBlack.copy(alpha = 0.6f)
             ),
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
         ) {
-            Text(
-                text = "Sign in",
-                fontFamily = Inter,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.5.sp,
-                color = IfxBlack
-            )
+            if (isLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        color = IfxBlack,
+                        strokeWidth = 2.5.dp,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Signing in...",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = IfxBlack
+                    )
+                }
+            } else {
+                Text(
+                    text = "Sign in",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.5.sp,
+                    color = IfxBlack
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -409,16 +618,5 @@ fun SocialAuthButton(
 fun LoginScreenPreview() {
     IFXTheme {
         LoginScreen()
-    }
-}
-
-@Preview(name = "Login Screen - Empty Fields", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun LoginScreenEmptyPreview() {
-    IFXTheme {
-        LoginScreen(
-            initialEmail = "",
-            initialPassword = ""
-        )
     }
 }

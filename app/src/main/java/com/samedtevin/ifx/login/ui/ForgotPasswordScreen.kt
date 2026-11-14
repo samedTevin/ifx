@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -47,6 +48,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.samedtevin.ifx.auth.FirebaseAuthService
+import com.samedtevin.ifx.auth.AuthResult
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.samedtevin.ifx.R
 import com.samedtevin.ifx.ui.theme.IFXTheme
 import com.samedtevin.ifx.ui.theme.IfxBlack
@@ -54,25 +61,62 @@ import com.samedtevin.ifx.ui.theme.IfxLime
 import com.samedtevin.ifx.ui.theme.Inter
 
 /**
- * Forgot Password Screen matching the IFX design specifications:
- * - Top back navigation button
- * - Electric lime circular badge with black shield outline icon
- * - "Forgot password?" title & "Enter your email and we will send a reset link." subtitle
- * - Floating outlined Email text field
- * - "Send reset link" electric lime pill CTA
- * - "Used Google or Microsoft?" helper card
- * - "Back to sign in" bottom footer link
+ * Forgot Password Screen with email regex validation.
  */
 @Composable
 fun ForgotPasswordScreen(
     modifier: Modifier = Modifier,
-    initialEmail: String = "alex@gmail.com",
+    initialEmail: String = "",
     onBackClick: () -> Unit = {},
     onSendResetLinkClick: (String) -> Unit = {},
     onBackToSignInClick: () -> Unit = {}
 ) {
     var email by rememberSaveable { mutableStateOf(initialEmail) }
+    var emailError by rememberSaveable { mutableStateOf<String?>(null) }
+    var statusMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var isSuccess by rememberSaveable { mutableStateOf(false) }
+    var isLoading by rememberSaveable { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val emailRegex = remember { Regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    fun attemptSendReset() {
+        if (isLoading) return
+        val cleanEmail = email.trim()
+        val isValid = cleanEmail.isNotBlank() && emailRegex.matches(cleanEmail)
+
+        emailError = when {
+            cleanEmail.isBlank() -> "Email address is required."
+            !isValid -> "Please enter a valid email address."
+            else -> null
+        }
+
+        if (isValid) {
+            keyboardController?.hide()
+            isLoading = true
+            statusMessage = null
+            coroutineScope.launch {
+                when (val result = FirebaseAuthService.sendPasswordReset(cleanEmail)) {
+                    is AuthResult.Success -> {
+                        isLoading = false
+                        isSuccess = true
+                        statusMessage = "Password reset link sent! Check your inbox."
+                        onSendResetLinkClick(cleanEmail)
+                    }
+                    is AuthResult.Error -> {
+                        isLoading = false
+                        isSuccess = false
+                        if (result.exception is FirebaseAuthInvalidUserException) {
+                            emailError = "No account found with this email address."
+                        } else {
+                            statusMessage = result.message
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -144,10 +188,13 @@ fun ForgotPasswordScreen(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // 4. Email Outlined Text Field
+        // 4. Email Outlined Text Field with Regex Validation
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                if (emailError != null) emailError = null
+            },
             label = {
                 Text(
                     text = "Email",
@@ -156,6 +203,16 @@ fun ForgotPasswordScreen(
                     fontSize = 14.sp
                 )
             },
+            placeholder = {
+                Text(
+                    text = "name@example.com",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    color = Color(0xFF9CA3AF)
+                )
+            },
+            isError = emailError != null,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             singleLine = true,
@@ -164,48 +221,81 @@ fun ForgotPasswordScreen(
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
-                onDone = {
-                    keyboardController?.hide()
-                    onSendResetLinkClick(email)
-                }
+                onDone = { attemptSendReset() }
             ),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = IfxBlack,
-                unfocusedBorderColor = IfxBlack,
+                unfocusedBorderColor = Color(0xFF9CA3AF),
+                errorBorderColor = Color(0xFFDC2626),
                 focusedLabelColor = IfxBlack,
                 unfocusedLabelColor = Color(0xFF6B7280),
                 focusedTextColor = IfxBlack,
                 unfocusedTextColor = IfxBlack,
-                cursorColor = IfxBlack,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent
+                cursorColor = IfxBlack
             )
         )
+        if (emailError != null) {
+            Text(
+                text = emailError ?: "",
+                fontFamily = Inter,
+                fontSize = 12.sp,
+                color = Color(0xFFDC2626),
+                modifier = Modifier.padding(start = 6.dp, top = 4.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 5. "Send reset link" Action Button
+        if (statusMessage != null) {
+            Text(
+                text = statusMessage ?: "",
+                fontFamily = Inter,
+                fontSize = 13.sp,
+                color = if (isSuccess) Color(0xFF16A34A) else Color(0xFFDC2626),
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+
+        // 5. "Send reset link" Action Button (Integrated with Firebase Auth)
         Button(
-            onClick = {
-                keyboardController?.hide()
-                onSendResetLinkClick(email)
-            },
+            onClick = { attemptSendReset() },
+            enabled = !isLoading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = IfxLime,
-                contentColor = IfxBlack
+                contentColor = IfxBlack,
+                disabledContainerColor = IfxLime.copy(alpha = 0.6f),
+                disabledContentColor = IfxBlack.copy(alpha = 0.6f)
             ),
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
         ) {
-            Text(
-                text = "Send reset link",
-                fontFamily = Inter,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.5.sp,
-                color = IfxBlack
-            )
+            if (isLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        color = IfxBlack,
+                        strokeWidth = 2.5.dp,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Sending reset link...",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = IfxBlack
+                    )
+                }
+            } else {
+                Text(
+                    text = "Send reset link",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.5.sp,
+                    color = IfxBlack
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

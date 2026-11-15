@@ -13,7 +13,8 @@ data class SavedAccountInfo(
     val fullName: String = "Alex Morgan",
     val email: String = "alex@gmail.com",
     val provider: String = "Google",
-    val initials: String = computeInitials(fullName)
+    val initials: String = computeInitials(fullName),
+    val photoUri: String? = null
 ) : Serializable {
 
     val firstName: String
@@ -54,14 +55,15 @@ data class SavedAccountInfo(
         val Saver: Saver<SavedAccountInfo?, Any> = listSaver(
             save = { account ->
                 if (account == null) {
-                    listOf(false, "", "", "", "")
+                    listOf(false, "", "", "", "", "")
                 } else {
                     listOf(
                         true,
                         account.fullName,
                         account.email,
                         account.provider,
-                        account.initials
+                        account.initials,
+                        account.photoUri ?: ""
                     )
                 }
             },
@@ -70,11 +72,13 @@ data class SavedAccountInfo(
                 if (!hasAccount) {
                     null
                 } else {
+                    val rawPhoto = (list.getOrNull(5) as? String).orEmpty()
                     SavedAccountInfo(
                         fullName = (list.getOrNull(1) as? String) ?: "",
                         email = (list.getOrNull(2) as? String) ?: "",
                         provider = (list.getOrNull(3) as? String) ?: "",
-                        initials = (list.getOrNull(4) as? String) ?: "--"
+                        initials = (list.getOrNull(4) as? String) ?: "--",
+                        photoUri = rawPhoto.ifBlank { null }
                     )
                 }
             }

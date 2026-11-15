@@ -41,6 +41,7 @@ object UserPreferencesDataStore {
     private val SAVED_EMAIL = stringPreferencesKey("saved_email")
     private val SAVED_PROVIDER = stringPreferencesKey("saved_provider")
     private val SAVED_INITIALS = stringPreferencesKey("saved_initials")
+    private val SAVED_PHOTO_URI = stringPreferencesKey("saved_photo_uri")
     private val CACHED_AUTH_EMAIL = stringPreferencesKey("cached_auth_email")
     private val CACHED_AUTH_ID_TOKEN = stringPreferencesKey("cached_auth_id_token")
     private val CACHED_AUTH_PASSWORD = stringPreferencesKey("cached_auth_password")
@@ -51,13 +52,15 @@ object UserPreferencesDataStore {
             val email = prefs[SAVED_EMAIL]
             val provider = prefs[SAVED_PROVIDER]
             val initials = prefs[SAVED_INITIALS]
+            val photoUri = prefs[SAVED_PHOTO_URI]?.ifBlank { null }
 
             val account = if (!fullName.isNullOrBlank()) {
                 SavedAccountInfo(
                     fullName = fullName,
                     email = email ?: "",
                     provider = provider ?: "Email",
-                    initials = initials ?: SavedAccountInfo.computeInitials(fullName)
+                    initials = initials ?: SavedAccountInfo.computeInitials(fullName),
+                    photoUri = photoUri
                 )
             } else {
                 null
@@ -99,6 +102,9 @@ object UserPreferencesDataStore {
             prefs[SAVED_EMAIL] = account.email
             prefs[SAVED_PROVIDER] = account.provider
             prefs[SAVED_INITIALS] = account.initials
+            if (!account.photoUri.isNullOrBlank()) {
+                prefs[SAVED_PHOTO_URI] = account.photoUri
+            }
             if (account.email.isNotBlank()) {
                 prefs[CACHED_AUTH_EMAIL] = account.email.trim()
             }
@@ -147,6 +153,25 @@ object UserPreferencesDataStore {
         }
     }
 
+    suspend fun updateProfilePhoto(context: Context, photoUri: String?) {
+        context.userPreferencesDataStore.edit { prefs ->
+            if (photoUri.isNullOrBlank()) {
+                prefs.remove(SAVED_PHOTO_URI)
+            } else {
+                prefs[SAVED_PHOTO_URI] = photoUri
+            }
+        }
+    }
+
+    suspend fun updateDisplayName(context: Context, fullName: String) {
+        val clean = fullName.trim()
+        if (clean.isBlank()) return
+        context.userPreferencesDataStore.edit { prefs ->
+            prefs[SAVED_FULL_NAME] = clean
+            prefs[SAVED_INITIALS] = SavedAccountInfo.computeInitials(clean)
+        }
+    }
+
     suspend fun saveGuestSession(context: Context) {
         context.userPreferencesDataStore.edit { prefs ->
             prefs[ONBOARDING_COMPLETED] = true
@@ -164,6 +189,7 @@ object UserPreferencesDataStore {
                 prefs.remove(SAVED_EMAIL)
                 prefs.remove(SAVED_PROVIDER)
                 prefs.remove(SAVED_INITIALS)
+                prefs.remove(SAVED_PHOTO_URI)
             }
         }
     }

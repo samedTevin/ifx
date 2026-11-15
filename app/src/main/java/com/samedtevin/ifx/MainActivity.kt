@@ -143,7 +143,8 @@ fun AppContent(deepLinkLoginTrigger: Int = 0) {
                 fullName = name,
                 email = user.email ?: "",
                 provider = if (isGoogle) "Google" else "Email",
-                initials = SavedAccountInfo.computeInitials(name)
+                initials = SavedAccountInfo.computeInitials(name),
+                photoUri = user.photoUrl?.toString()
             )
         }
     }
@@ -233,7 +234,8 @@ fun AppContent(deepLinkLoginTrigger: Int = 0) {
                         fullName = name,
                         email = email,
                         provider = "Google",
-                        initials = SavedAccountInfo.computeInitials(name)
+                        initials = SavedAccountInfo.computeInitials(name),
+                        photoUri = user.photoUrl?.toString()
                     )
                     savedAccount = newAccount
                     UserPreferencesDataStore.saveLoggedInAccount(
@@ -427,6 +429,9 @@ fun AppContent(deepLinkLoginTrigger: Int = 0) {
             AppDestination.HOME -> {
                 HomeScreen(
                     account = savedAccount,
+                    onAccountUpdated = { updatedAccount ->
+                        savedAccount = updatedAccount
+                    },
                     onLogoutClick = {
                         // Keep Firebase token in background so Forgot Password polling can detect
                         // token revocation / passwordUpdatedAt changes, while clearing app session.

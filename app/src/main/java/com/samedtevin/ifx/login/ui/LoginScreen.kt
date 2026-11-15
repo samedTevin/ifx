@@ -63,6 +63,8 @@ import com.samedtevin.ifx.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.samedtevin.ifx.R
+import com.samedtevin.ifx.ui.components.IfxButtonProgressContent
+import com.samedtevin.ifx.ui.components.IfxProgressBar
 import com.samedtevin.ifx.ui.theme.IFXTheme
 import com.samedtevin.ifx.ui.theme.IfxBlack
 import com.samedtevin.ifx.ui.theme.IfxLime
@@ -82,14 +84,14 @@ fun LoginScreen(
     initialPassword: String = "",
     onBackClick: () -> Unit = {},
     onSignInClick: (String, String) -> Unit = { _, _ -> },
-    onForgotPasswordClick: () -> Unit = {},
+    onForgotPasswordClick: (String) -> Unit = {},
     onGoogleClick: () -> Unit = {},
     onMicrosoftClick: () -> Unit = {},
     onGuestClick: () -> Unit = {},
     onCreateAccountClick: () -> Unit = {}
 ) {
-    var email by rememberSaveable { mutableStateOf(initialEmail) }
-    var password by rememberSaveable { mutableStateOf(initialPassword) }
+    var email by rememberSaveable(initialEmail) { mutableStateOf(initialEmail) }
+    var password by rememberSaveable(initialPassword) { mutableStateOf(initialPassword) }
     var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -97,6 +99,7 @@ fun LoginScreen(
     var passwordError by rememberSaveable { mutableStateOf<String?>(null) }
     var generalError by rememberSaveable { mutableStateOf<String?>(null) }
     var isLoading by rememberSaveable { mutableStateOf(false) }
+    var isDialogActionLoading by rememberSaveable { mutableStateOf(false) }
     var showUnverifiedDialog by rememberSaveable { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
@@ -153,7 +156,7 @@ fun LoginScreen(
 
     if (showUnverifiedDialog) {
         AlertDialog(
-            onDismissRequest = { showUnverifiedDialog = false },
+            onDismissRequest = { if (!isDialogActionLoading) showUnverifiedDialog = false },
             title = {
                 Text(
                     text = "Email Not Verified",
@@ -164,19 +167,34 @@ fun LoginScreen(
                 )
             },
             text = {
-                Text(
-                    text = "Your account (${email.trim()}) has not been verified yet. Please check your inbox (and spam folder) and click the verification link before logging in.",
-                    fontFamily = Inter,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFF4B5563)
-                )
+                Column {
+                    Text(
+                        text = "Your account (${email.trim()}) has not been verified yet. Please check your inbox (and spam folder) and click the verification link before logging in.",
+                        fontFamily = Inter,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        color = Color(0xFF4B5563)
+                    )
+                    if (isDialogActionLoading) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        IfxProgressBar(
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 4.dp,
+                            trackColor = Color(0xFFE5E7EB),
+                            indicatorColor = IfxBlack
+                        )
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        if (isDialogActionLoading) return@Button
                         coroutineScope.launch {
-                            when (val res = FirebaseAuthService.resendEmailVerification()) {
+                            isDialogActionLoading = true
+                            val res = FirebaseAuthService.resendEmailVerification()
+                            isDialogActionLoading = false
+                            when (res) {
                                 is AuthResult.Success -> {
                                     Toast.makeText(context, "Verification email resent! Check your inbox.", Toast.LENGTH_LONG).show()
                                 }
@@ -186,6 +204,7 @@ fun LoginScreen(
                             }
                         }
                     },
+                    enabled = !isDialogActionLoading,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = IfxLime,
                         contentColor = IfxBlack
@@ -202,9 +221,13 @@ fun LoginScreen(
             },
             dismissButton = {
                 TextButton(
+                    enabled = !isDialogActionLoading,
                     onClick = {
+                        if (isDialogActionLoading) return@TextButton
                         coroutineScope.launch {
+                            isDialogActionLoading = true
                             val verified = FirebaseAuthService.checkEmailVerified()
+                            isDialogActionLoading = false
                             if (verified) {
                                 showUnverifiedDialog = false
                                 Toast.makeText(context, "Email verified successfully!", Toast.LENGTH_SHORT).show()
@@ -227,14 +250,15 @@ fun LoginScreen(
         )
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+        ) {
         // 1. Top Navigation Bar: Back Arrow
         Box(
             modifier = Modifier
@@ -422,7 +446,7 @@ fun LoginScreen(
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = false, radius = 20.dp),
-                    onClick = onForgotPasswordClick
+                    onClick = { onForgotPasswordClick(email.trim()) }
                 )
             )
         }
@@ -446,8 +470,8 @@ fun LoginScreen(
             colors = ButtonDefaults.buttonColors(
                 containerColor = IfxLime,
                 contentColor = IfxBlack,
-                disabledContainerColor = IfxLime.copy(alpha = 0.6f),
-                disabledContentColor = IfxBlack.copy(alpha = 0.6f)
+                disabledContainerColor = IfxLime.copy(alpha = 0.85f),
+                disabledContentColor = IfxBlack
             ),
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier
@@ -455,21 +479,7 @@ fun LoginScreen(
                 .height(54.dp)
         ) {
             if (isLoading) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        color = IfxBlack,
-                        strokeWidth = 2.5.dp,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Signing in...",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = IfxBlack
-                    )
-                }
+                IfxButtonProgressContent(text = "Signing in...")
             } else {
                 Text(
                     text = "Sign in",
@@ -565,6 +575,7 @@ fun LoginScreen(
                     onClick = onCreateAccountClick
                 )
             )
+        }
         }
     }
 }

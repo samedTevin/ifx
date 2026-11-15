@@ -85,6 +85,7 @@ import com.samedtevin.ifx.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.samedtevin.ifx.R
+import com.samedtevin.ifx.ui.components.IfxButtonProgressContent
 import com.samedtevin.ifx.ui.theme.IFXTheme
 import com.samedtevin.ifx.ui.theme.IfxBlack
 import com.samedtevin.ifx.ui.theme.IfxLime
@@ -147,14 +148,15 @@ fun RegisterScreen(
         else -> {
             val currentStep = RegisterStep.fromIndex(pagerState.currentPage)
 
-            Column(
-                modifier = modifier
-                    .fillMaxSize()
-                    .background(Color.White)
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp)
-            ) {
+            Box(modifier = modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White)
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp)
+                ) {
                 RegisterTopBar(
                     onBackClick = {
                         if (pagerState.currentPage > 0) {
@@ -285,8 +287,8 @@ fun RegisterScreen(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = IfxLime,
                         contentColor = IfxBlack,
-                        disabledContainerColor = IfxLime.copy(alpha = 0.6f),
-                        disabledContentColor = IfxBlack.copy(alpha = 0.6f)
+                        disabledContainerColor = IfxLime.copy(alpha = 0.85f),
+                        disabledContentColor = IfxBlack
                     ),
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier
@@ -295,21 +297,7 @@ fun RegisterScreen(
                         .height(54.dp)
                 ) {
                     if (isCreatingAccount) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(
-                                color = IfxBlack,
-                                strokeWidth = 2.5.dp,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Creating account...",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = IfxBlack
-                            )
-                        }
+                        IfxButtonProgressContent(text = "Creating account...")
                     } else {
                         Text(
                             text = if (pagerState.currentPage == 4) "Finish" else "Continue",
@@ -320,6 +308,7 @@ fun RegisterScreen(
                         )
                     }
                 }
+            }
             }
         }
     }

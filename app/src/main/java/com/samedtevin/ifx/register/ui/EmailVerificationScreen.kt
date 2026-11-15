@@ -1,4 +1,4 @@
-﻿package com.samedtevin.ifx.register.ui
+package com.samedtevin.ifx.register.ui
 
 import android.content.Intent
 import android.widget.Toast
@@ -62,6 +62,8 @@ import kotlinx.coroutines.launch
 import com.samedtevin.ifx.auth.FirebaseAuthService
 import com.samedtevin.ifx.auth.AuthResult
 import com.samedtevin.ifx.R
+import com.samedtevin.ifx.ui.components.IfxButtonProgressContent
+import com.samedtevin.ifx.ui.components.IfxWaitingIndicator
 import com.samedtevin.ifx.ui.theme.IFXTheme
 import com.samedtevin.ifx.ui.theme.IfxBlack
 import com.samedtevin.ifx.ui.theme.IfxLime
@@ -159,26 +161,15 @@ fun EmailVerificationScreen(
         }
     }
 
-    // Pulsing animation for the waiting dot
-    val infiniteTransition = rememberInfiniteTransition(label = "pulseTransition")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dotAlpha"
-    )
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+        ) {
         // 1. Top Bar with Back action
         Row(
             modifier = Modifier
@@ -295,24 +286,11 @@ fun EmailVerificationScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 6. Waiting for verification pulse indicator
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .alpha(dotAlpha)
-                        .clip(CircleShape)
-                        .background(IfxLime)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Waiting for verification...",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = Color(0xFF6B7280)
-                )
-            }
+            // 6. Single clean waiting progress indicator
+            IfxWaitingIndicator(
+                text = "Waiting for verification...",
+                alignment = Alignment.Start
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -356,8 +334,8 @@ fun EmailVerificationScreen(
             colors = ButtonDefaults.buttonColors(
                 containerColor = IfxLime,
                 contentColor = IfxBlack,
-                disabledContainerColor = IfxLime.copy(alpha = 0.6f),
-                disabledContentColor = IfxBlack.copy(alpha = 0.6f)
+                disabledContainerColor = IfxLime.copy(alpha = 0.85f),
+                disabledContentColor = IfxBlack
             ),
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier
@@ -365,21 +343,7 @@ fun EmailVerificationScreen(
                 .height(54.dp)
         ) {
             if (isChecking) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        color = IfxBlack,
-                        strokeWidth = 2.5.dp,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Checking verification...",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = IfxBlack
-                    )
-                }
+                IfxButtonProgressContent(text = "Checking verification...")
             } else {
                 Text(
                     text = "I have verified",
@@ -475,6 +439,7 @@ fun EmailVerificationScreen(
                 )
             )
         }
+    }
     }
 }
 

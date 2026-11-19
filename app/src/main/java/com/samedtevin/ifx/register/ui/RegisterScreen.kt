@@ -634,7 +634,7 @@ private fun AboutYouStep(
             colors = DatePickerDefaults.colors(
                 containerColor = Color.White
             ),
-            modifier = Modifier.border(1.5.dp, IfxLime, RoundedCornerShape(24.dp))
+            modifier = Modifier.border(1.5.dp, IfxBlack, RoundedCornerShape(24.dp))
         ) {
             DatePicker(
                 state = datePickerState,
@@ -978,12 +978,13 @@ private fun AboutYouStep(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Gender Dropdown
+        // Gender Dropdown (Black border, professional styling)
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = formData.gender,
                 onValueChange = {},
                 readOnly = true,
+                enabled = false,
                 label = { Text("Gender (optional)", fontFamily = Inter, fontSize = 14.sp) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -994,33 +995,67 @@ private fun AboutYouStep(
                         painter = painterResource(id = R.drawable.ic_chevron_down),
                         contentDescription = "Expand gender",
                         tint = IfxBlack,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { genderDropdownExpanded = true }
+                        modifier = Modifier.size(18.dp)
                     )
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = IfxBlack,
-                    unfocusedBorderColor = Color(0xFFD1D5DB),
-                    focusedTextColor = IfxBlack,
-                    unfocusedTextColor = IfxBlack
+                    disabledTextColor = IfxBlack,
+                    disabledBorderColor = IfxBlack,
+                    disabledLabelColor = IfxBlack
                 )
             )
 
             DropdownMenu(
                 expanded = genderDropdownExpanded,
                 onDismissRequest = { genderDropdownExpanded = false },
-                modifier = Modifier
-                    .background(Color.White)
-                    .border(1.5.dp, IfxLime, RoundedCornerShape(16.dp))
+                shape = RoundedCornerShape(16.dp),
+                containerColor = Color.White,
+                shadowElevation = 8.dp,
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, IfxBlack),
+                modifier = Modifier.width(240.dp)
             ) {
                 genderOptions.forEach { option ->
+                    val isSelected = formData.gender == option
                     DropdownMenuItem(
-                        text = { Text(text = option, fontFamily = Inter, fontSize = 14.sp, color = IfxBlack) },
+                        text = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = option,
+                                    fontFamily = Inter,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    color = IfxBlack
+                                )
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(IfxLime)
+                                            .border(1.dp, IfxBlack, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_check),
+                                            contentDescription = "Selected",
+                                            tint = IfxBlack,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        },
                         onClick = {
                             onUpdate(formData.copy(gender = option))
                             genderDropdownExpanded = false
-                        }
+                        },
+                        modifier = Modifier.background(
+                            if (isSelected) IfxLime.copy(alpha = 0.18f) else Color.Transparent
+                        )
                     )
                 }
             }
@@ -1028,7 +1063,7 @@ private fun AboutYouStep(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Country / Region Field (Opens searchable modal covering all countries worldwide)
+        // Country / Region Field (Black border, opens searchable modal covering all countries worldwide)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1049,12 +1084,12 @@ private fun AboutYouStep(
                         painter = painterResource(id = R.drawable.ic_chevron_down),
                         contentDescription = "Select country",
                         tint = IfxBlack,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 },
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledTextColor = IfxBlack,
-                    disabledBorderColor = if (errors.countryError != null) Color(0xFFDC2626) else Color(0xFFD1D5DB),
+                    disabledBorderColor = if (errors.countryError != null) Color(0xFFDC2626) else IfxBlack,
                     disabledLabelColor = IfxBlack,
                     disabledPlaceholderColor = Color(0xFF9CA3AF)
                 )
@@ -1154,12 +1189,13 @@ private fun OccupationStep(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Occupation Dropdown
+        // Occupation Dropdown (Black border, professional styling)
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = formData.selectedOccupation,
                 onValueChange = {},
                 readOnly = true,
+                enabled = false,
                 isError = errors.occupationError != null,
                 label = { Text("Occupation", fontFamily = Inter, fontSize = 14.sp) },
                 placeholder = { Text("Select occupation", color = Color(0xFF9CA3AF), fontSize = 14.sp) },
@@ -1172,34 +1208,68 @@ private fun OccupationStep(
                         painter = painterResource(id = R.drawable.ic_chevron_down),
                         contentDescription = "Expand occupation",
                         tint = IfxBlack,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { occupationDropdownExpanded = true }
+                        modifier = Modifier.size(18.dp)
                     )
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = IfxBlack,
-                    unfocusedBorderColor = Color(0xFFD1D5DB),
-                    errorBorderColor = Color(0xFFDC2626),
-                    focusedTextColor = IfxBlack,
-                    unfocusedTextColor = IfxBlack
+                    disabledTextColor = IfxBlack,
+                    disabledBorderColor = if (errors.occupationError != null) Color(0xFFDC2626) else IfxBlack,
+                    disabledLabelColor = IfxBlack,
+                    disabledPlaceholderColor = Color(0xFF9CA3AF)
                 )
             )
 
             DropdownMenu(
                 expanded = occupationDropdownExpanded,
                 onDismissRequest = { occupationDropdownExpanded = false },
-                modifier = Modifier
-                    .background(Color.White)
-                    .border(1.5.dp, IfxLime, RoundedCornerShape(16.dp))
+                shape = RoundedCornerShape(16.dp),
+                containerColor = Color.White,
+                shadowElevation = 8.dp,
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, IfxBlack),
+                modifier = Modifier.width(240.dp)
             ) {
                 allOccupations.forEach { option ->
+                    val isSelected = formData.selectedOccupation == option
                     DropdownMenuItem(
-                        text = { Text(text = option, fontFamily = Inter, fontSize = 14.sp, color = IfxBlack) },
+                        text = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = option,
+                                    fontFamily = Inter,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    color = IfxBlack
+                                )
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(IfxLime)
+                                            .border(1.dp, IfxBlack, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_check),
+                                            contentDescription = "Selected",
+                                            tint = IfxBlack,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        },
                         onClick = {
                             onUpdate(formData.copy(selectedOccupation = option))
                             occupationDropdownExpanded = false
-                        }
+                        },
+                        modifier = Modifier.background(
+                            if (isSelected) IfxLime.copy(alpha = 0.18f) else Color.Transparent
+                        )
                     )
                 }
             }
@@ -1237,11 +1307,10 @@ private fun OccupationStep(
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_gemini_star_vector),
+                Image(
+                    painter = painterResource(id = R.drawable.ic_gemini_color),
                     contentDescription = "Gemini",
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(24.dp)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))

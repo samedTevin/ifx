@@ -21,14 +21,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -43,9 +47,9 @@ import com.samedtevin.ifx.ui.theme.IfxMuted
 import com.samedtevin.ifx.ui.theme.Inter
 
 /**
- * Second Onboarding Page: 'Create your flow, visually'
- * Demonstrates the interactive visual rule builder with connected nodes.
- * The grid background extends full-bleed across the entire screen.
+ * Second Onboarding Page: "Create your flow, [visually]"
+ * Keeps the existing full-bleed light grid background (`ic_bg_grid_light`)
+ * and demonstrates the visual node builder with Trigger, Condition, branched Actions, and + Add step.
  */
 @Composable
 fun OnboardingSecondPageContent(
@@ -54,7 +58,7 @@ fun OnboardingSecondPageContent(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        // 1. Full-bleed Grid Background extending under all controls
+        // 1. Existing Full-Bleed Light Grid Background (preserved)
         Image(
             painter = painterResource(id = R.drawable.ic_bg_grid_light),
             contentDescription = null,
@@ -67,48 +71,100 @@ fun OnboardingSecondPageContent(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(top = 56.dp, bottom = 110.dp)
+                .padding(top = 62.dp, bottom = 114.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            // Display Headline with 'flow' and 'visually' highlighted in theme green
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 20.dp)
-            ) {
+            // 2. Display Headline: "Create your / flow, [visually]" + Subtitle
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Create your flow,\nvisually",
+                    text = "Create your",
                     fontFamily = Inter,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 37.sp,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 39.sp,
                     lineHeight = 43.sp,
-                    letterSpacing = (-0.5).sp,
+                    letterSpacing = (-1.2).sp,
                     color = IfxBlack
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "flow, ",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 39.sp,
+                        lineHeight = 43.sp,
+                        letterSpacing = (-1.2).sp,
+                        color = IfxBlack
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(IfxLime)
+                            .padding(horizontal = 10.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "visually",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 38.sp,
+                            lineHeight = 42.sp,
+                            letterSpacing = (-1.2).sp,
+                            color = IfxBlack
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Connect triggers, conditions and actions.",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    color = Color(0xFF4B5563)
                 )
             }
 
-            // Visual Flow Builder Diagram
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // 3. Visual Flow Builder Diagram
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. Trigger Node (Black)
-                Box(
+                // Trigger Node (Black with Lime Mail Circle)
+                Row(
                     modifier = Modifier
-                        .fillMaxWidth(0.72f)
+                        .fillMaxWidth(0.76f)
                         .align(Alignment.Start)
-                        .shadow(8.dp, RoundedCornerShape(22.dp), spotColor = Color(0x33000000))
-                        .background(IfxBlack, RoundedCornerShape(22.dp))
-                        .padding(horizontal = 18.dp, vertical = 14.dp)
+                        .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color(0x33000000))
+                        .background(IfxBlack, RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(IfxLime),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_auth_mail),
+                            contentDescription = "Trigger mail",
+                            tint = IfxBlack,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "TRIGGER · WHEN",
+                            text = "TRIGGER",
                             fontFamily = Inter,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             letterSpacing = 1.sp,
                             color = IfxLime
                         )
@@ -116,207 +172,168 @@ fun OnboardingSecondPageContent(
                             text = "New email arrives",
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 15.5.sp,
                             color = Color.White
                         )
                     }
                 }
 
-                // Plus Add Connector between Trigger and Condition
+                // Plus Connector between Trigger and Condition
                 Box(
                     modifier = Modifier
                         .height(38.dp)
                         .width(40.dp)
                         .align(Alignment.Start)
-                        .padding(start = 78.dp),
+                        .padding(start = 52.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawLine(
                             color = IfxBlack,
-                            start = Offset(size.width / 2, 0f),
-                            end = Offset(size.width / 2, size.height),
+                            start = Offset(size.width / 2f, 0f),
+                            end = Offset(size.width / 2f, size.height),
                             strokeWidth = 2.dp.toPx()
                         )
                     }
-
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .background(IfxLime, CircleShape)
-                            .border(1.5.dp, IfxBlack, CircleShape),
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(IfxBlack)
+                            .border(2.dp, IfxLime, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .background(IfxBlack, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "+",
-                                color = IfxLime,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = "+",
+                            color = IfxLime,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     }
                 }
 
-                // 2. Condition Node (Lime)
-                Box(
+                // Condition Node (Electric Lime with Black Diamond Circle)
+                Row(
                     modifier = Modifier
-                        .fillMaxWidth(0.85f)
+                        .fillMaxWidth(0.90f)
                         .align(Alignment.Start)
-                        .shadow(10.dp, RoundedCornerShape(22.dp), spotColor = Color(0x33C6FF3F))
-                        .background(IfxLime, RoundedCornerShape(22.dp))
-                        .border(1.8.dp, IfxBlack, RoundedCornerShape(22.dp))
-                        .padding(horizontal = 18.dp, vertical = 14.dp)
+                        .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color(0x28C6FF3F))
+                        .background(IfxLime, RoundedCornerShape(24.dp))
+                        .border(1.5.dp, IfxBlack, RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(IfxBlack),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(16.dp)) {
+                            val halfW = size.width / 2f
+                            val halfH = size.height / 2f
+                            val diamond = Path().apply {
+                                moveTo(halfW, 0f)
+                                lineTo(size.width, halfH)
+                                lineTo(halfW, size.height)
+                                lineTo(0f, halfH)
+                                close()
+                            }
+                            drawPath(
+                                path = diamond,
+                                color = IfxLime,
+                                style = Stroke(width = 1.8.dp.toPx(), join = StrokeJoin.Round)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
                             text = "CONDITION",
                             fontFamily = Inter,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             letterSpacing = 1.sp,
                             color = IfxBlack
                         )
                         Text(
-                            text = "IF · contains 'deadline'?",
+                            text = "If it contains 'deadline'",
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 15.5.sp,
                             color = IfxBlack
                         )
                     }
                 }
 
-                // Two Downward Arrows branching out to Actions
+                // Two Downward Branching Arrows
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp),
+                        .height(40.dp),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    Canvas(modifier = Modifier.weight(1f).height(42.dp)) {
-                        val centerX = size.width * 0.55f
-                        val bottomY = size.height - 2.dp.toPx()
+                    repeat(2) { idx ->
+                        Canvas(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                        ) {
+                            val centerX = size.width * if (idx == 0) 0.50f else 0.50f
+                            val bottomY = size.height - 3.dp.toPx()
 
-                        drawLine(
-                            color = IfxBlack,
-                            start = Offset(centerX, 0f),
-                            end = Offset(centerX, bottomY),
-                            strokeWidth = 2.dp.toPx()
-                        )
+                            drawLine(
+                                color = IfxBlack,
+                                start = Offset(centerX, 0f),
+                                end = Offset(centerX, bottomY),
+                                strokeWidth = 2.dp.toPx()
+                            )
 
-                        val arrowPath = Path().apply {
-                            moveTo(centerX, bottomY + 3.dp.toPx())
-                            lineTo(centerX - 6.dp.toPx(), bottomY - 8.dp.toPx())
-                            lineTo(centerX + 6.dp.toPx(), bottomY - 8.dp.toPx())
-                            close()
+                            val arrowPath = Path().apply {
+                                moveTo(centerX, bottomY + 3.dp.toPx())
+                                lineTo(centerX - 6.dp.toPx(), bottomY - 8.dp.toPx())
+                                lineTo(centerX + 6.dp.toPx(), bottomY - 8.dp.toPx())
+                                close()
+                            }
+                            drawPath(arrowPath, color = IfxLime)
+                            drawPath(arrowPath, color = IfxBlack, style = Stroke(1.5.dp.toPx()))
                         }
-                        drawPath(arrowPath, color = IfxLime)
-                        drawPath(arrowPath, color = IfxBlack, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
-                    }
-
-                    Canvas(modifier = Modifier.weight(1f).height(42.dp)) {
-                        val centerX = size.width * 0.60f
-                        val bottomY = size.height - 2.dp.toPx()
-
-                        drawLine(
-                            color = IfxBlack,
-                            start = Offset(centerX, 0f),
-                            end = Offset(centerX, bottomY),
-                            strokeWidth = 2.dp.toPx()
-                        )
-
-                        val arrowPath = Path().apply {
-                            moveTo(centerX, bottomY + 3.dp.toPx())
-                            lineTo(centerX - 6.dp.toPx(), bottomY - 8.dp.toPx())
-                            lineTo(centerX + 6.dp.toPx(), bottomY - 8.dp.toPx())
-                            close()
-                        }
-                        drawPath(arrowPath, color = IfxLime)
-                        drawPath(arrowPath, color = IfxBlack, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
                     }
                 }
 
-                // 3. Action Nodes (Two cards side by side)
+                // Side-by-Side Action Cards (Black with top-left Lime icon circle)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Action 1: Add to Calendar
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .shadow(8.dp, RoundedCornerShape(22.dp), spotColor = Color(0x33000000))
-                            .background(IfxBlack, RoundedCornerShape(22.dp))
-                            .padding(16.dp)
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "ACTION",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.sp,
-                                letterSpacing = 1.sp,
-                                color = IfxLime
-                            )
-                            Text(
-                                text = "Add to Calendar",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                lineHeight = 19.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    // Action 2: Save to Notebook
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .shadow(8.dp, RoundedCornerShape(22.dp), spotColor = Color(0x33000000))
-                            .background(IfxBlack, RoundedCornerShape(22.dp))
-                            .padding(16.dp)
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "ACTION",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.sp,
-                                letterSpacing = 1.sp,
-                                color = IfxLime
-                            )
-                            Text(
-                                text = "Save to\nNotebook",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                lineHeight = 19.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
+                    ActionFlowCard(
+                        iconRes = R.drawable.ic_calendar_outline,
+                        title = "Add to Calendar",
+                        modifier = Modifier.weight(1f)
+                    )
+                    ActionFlowCard(
+                        iconRes = R.drawable.ic_tile_notebook,
+                        title = "Save to Notebook",
+                        useTileImage = true,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // 4. Dashed Placeholder Step (+ Add step)
+                // Dashed "+ Add step" Placeholder
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(52.dp)
+                        .background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(24.dp))
                         .dashedBorder(
-                            color = Color(0xFFB0B0B0),
-                            strokeWidth = 1.6.dp,
+                            color = Color(0xFFB0B5BC),
+                            strokeWidth = 1.5.dp,
                             dashLength = 7.dp,
-                            gapLength = 4.dp,
-                            cornerRadius = 22.dp
+                            gapLength = 5.dp,
+                            cornerRadius = 24.dp
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -340,9 +357,84 @@ fun OnboardingSecondPageContent(
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun ActionFlowCard(
+    iconRes: Int,
+    title: String,
+    modifier: Modifier = Modifier,
+    useTileImage: Boolean = false
+) {
+    Column(
+        modifier = modifier
+            .shadow(8.dp, RoundedCornerShape(22.dp), spotColor = Color(0x33000000))
+            .background(IfxBlack, RoundedCornerShape(22.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(IfxLime),
+            contentAlignment = Alignment.Center
+        ) {
+            if (useTileImage) {
+                Canvas(modifier = Modifier.size(15.dp)) {
+                    val stroke = 1.6.dp.toPx()
+                    val w = size.width
+                    val h = size.height
+                    drawRoundRect(
+                        color = IfxBlack,
+                        topLeft = Offset(w * 0.14f, h * 0.08f),
+                        size = androidx.compose.ui.geometry.Size(w * 0.72f, h * 0.84f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+                        style = Stroke(width = stroke)
+                    )
+                    drawLine(
+                        color = IfxBlack,
+                        start = Offset(w * 0.30f, h * 0.36f),
+                        end = Offset(w * 0.70f, h * 0.36f),
+                        strokeWidth = stroke
+                    )
+                    drawLine(
+                        color = IfxBlack,
+                        start = Offset(w * 0.30f, h * 0.60f),
+                        end = Offset(w * 0.60f, h * 0.60f),
+                        strokeWidth = stroke
+                    )
+                }
+            } else {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = title,
+                    tint = IfxBlack,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = "ACTION",
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 10.sp,
+                letterSpacing = 1.sp,
+                color = IfxLime
+            )
+            Text(
+                text = title,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.5.sp,
+                lineHeight = 19.sp,
+                color = Color.White
+            )
         }
     }
 }

@@ -156,7 +156,17 @@ fun IfxTopBar(
         Image(
             painter = painterResource(id = R.drawable.ic_ifx_squircle),
             contentDescription = "ifx App Icon",
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier
+                .size(42.dp)
+                .then(
+                    if (isDark) {
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, Color(0xFF2B2F27), RoundedCornerShape(12.dp))
+                    } else {
+                        Modifier
+                    }
+                )
         )
 
         if (showSkip) {
@@ -286,7 +296,7 @@ fun IfxPagerIndicator(
     modifier: Modifier = Modifier,
     isDark: Boolean = false
 ) {
-    val inactiveColor = if (isDark) Color.White else IfxBlack
+    val inactiveColor = if (isDark) Color(0xFF4B4F49) else Color(0xFFB7C2AC)
 
     Row(
         modifier = modifier,

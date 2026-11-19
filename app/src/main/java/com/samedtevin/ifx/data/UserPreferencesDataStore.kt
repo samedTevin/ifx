@@ -23,14 +23,20 @@ data class UserSessionPreferences(
     val savedAccount: SavedAccountInfo? = null,
     val cachedAuthEmail: String? = null,
     val cachedAuthIdToken: String? = null,
-    val cachedAuthPassword: String? = null
-)
+    val cachedAuthPassword: String? = null,
+    val appTourSkipped: Boolean = false,
+    val appTourCompleted: Boolean = false
+) {
+    val hasSeenAppTour: Boolean
+        get() = appTourSkipped || appTourCompleted
+}
 
 /**
  * Jetpack DataStore manager persisting onboarding completion and active authentication state.
  * - Ensures Onboarding is only shown on first launch (until skipped or completed).
  * - Automatically routes to Welcome when Onboarding is done and user is logged out.
  * - Automatically routes to Home when the user has an active logged-in session.
+ * - Persists Guided App Tour skipped/completed flags so newcomers are only prompted once.
  */
 object UserPreferencesDataStore {
 
@@ -45,6 +51,8 @@ object UserPreferencesDataStore {
     private val CACHED_AUTH_EMAIL = stringPreferencesKey("cached_auth_email")
     private val CACHED_AUTH_ID_TOKEN = stringPreferencesKey("cached_auth_id_token")
     private val CACHED_AUTH_PASSWORD = stringPreferencesKey("cached_auth_password")
+    private val APP_TOUR_SKIPPED = booleanPreferencesKey("app_tour_skipped")
+    private val APP_TOUR_COMPLETED = booleanPreferencesKey("app_tour_completed")
 
     fun observePreferences(context: Context): Flow<UserSessionPreferences> {
         return context.userPreferencesDataStore.data.map { prefs ->
@@ -73,7 +81,9 @@ object UserPreferencesDataStore {
                 savedAccount = account,
                 cachedAuthEmail = prefs[CACHED_AUTH_EMAIL],
                 cachedAuthIdToken = prefs[CACHED_AUTH_ID_TOKEN],
-                cachedAuthPassword = prefs[CACHED_AUTH_PASSWORD]
+                cachedAuthPassword = prefs[CACHED_AUTH_PASSWORD],
+                appTourSkipped = prefs[APP_TOUR_SKIPPED] ?: false,
+                appTourCompleted = prefs[APP_TOUR_COMPLETED] ?: false
             )
         }
     }
@@ -85,6 +95,28 @@ object UserPreferencesDataStore {
     suspend fun setOnboardingCompleted(context: Context, completed: Boolean = true) {
         context.userPreferencesDataStore.edit { prefs ->
             prefs[ONBOARDING_COMPLETED] = completed
+        }
+    }
+
+    suspend fun setAppTourSkipped(context: Context, skipped: Boolean = true) {
+        context.userPreferencesDataStore.edit { prefs ->
+            prefs[APP_TOUR_SKIPPED] = skipped
+        }
+    }
+
+    suspend fun setAppTourCompleted(context: Context, completed: Boolean = true) {
+        context.userPreferencesDataStore.edit { prefs ->
+            prefs[APP_TOUR_COMPLETED] = completed
+            if (completed) {
+                prefs[APP_TOUR_SKIPPED] = false
+            }
+        }
+    }
+
+    suspend fun resetAppTour(context: Context) {
+        context.userPreferencesDataStore.edit { prefs ->
+            prefs[APP_TOUR_SKIPPED] = false
+            prefs[APP_TOUR_COMPLETED] = false
         }
     }
 

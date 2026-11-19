@@ -8,6 +8,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,6 +50,7 @@ import com.samedtevin.ifx.ui.theme.Inter
  * Recomposes dynamically from user preferences and inputs stored in RegisterFormData.
  * Eliminates all static/hardcoded dummy placeholders.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RegisterDoneScreen(
     formData: RegisterFormData,
@@ -64,7 +67,7 @@ fun RegisterDoneScreen(
         formData.email.ifBlank { null },
         formData.computedAge.ifBlank { null },
         formData.country.ifBlank { null }
-    ).joinToString(" ? ")
+    ).joinToString("  \u00B7  ")
 
     Column(
         modifier = modifier
@@ -199,24 +202,27 @@ fun RegisterDoneScreen(
                 if (displayRoutines.isNotEmpty() || formData.selectedOccupation.isNotBlank()) {
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Dynamic chips row from user selections
-                    Row(
+                    // Wrapping FlowRow so every chip fits cleanly on one line inside its pill
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         if (formData.selectedOccupation.isNotBlank()) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(IfxLime)
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     text = formData.selectedOccupation,
                                     fontFamily = Inter,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = IfxBlack
+                                    color = IfxBlack,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -227,15 +233,17 @@ fun RegisterDoneScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
-                                        .border(1.dp, Color.White, RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        .border(1.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = routine,
                                         fontFamily = Inter,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             } else {
@@ -243,14 +251,16 @@ fun RegisterDoneScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(Color(0xFF262626))
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = routine,
                                         fontFamily = Inter,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
-                                        color = Color(0xFFE5E7EB)
+                                        color = Color(0xFFE5E7EB),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -261,14 +271,16 @@ fun RegisterDoneScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0xFF262626))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     text = "+${displayRoutines.size - 2} more",
                                     fontFamily = Inter,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = Color(0xFF9CA3AF)
+                                    color = Color(0xFFD1D5DB),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }

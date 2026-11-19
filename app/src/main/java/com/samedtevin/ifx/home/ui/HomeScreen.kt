@@ -350,7 +350,7 @@ fun HomeScreen(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 22.dp)
-                        .padding(top = 12.dp, bottom = 104.dp)
+                        .padding(top = 10.dp, bottom = 84.dp)
                 ) {
                     // 1. Top Bar: Dynamic Profile Photo (with Initials Placeholder) + Crisp Notification Bell
                     Row(
@@ -371,25 +371,25 @@ fun HomeScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(22.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 2. Date & Greeting Header
                     Text(
                         text = formattedDate,
                         fontFamily = Inter,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
+                        fontSize = 14.5.sp,
                         color = Color(0xFF686D76)
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
                         text = "Hi, $customDisplayName",
                         fontFamily = Inter,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 36.sp,
-                        lineHeight = 42.sp,
+                        fontSize = 34.sp,
+                        lineHeight = 38.sp,
                         letterSpacing = (-1).sp,
                         color = IfxBlack
                     )
@@ -404,11 +404,11 @@ fun HomeScreen(
                             activeSparksCount = activeSparksCount,
                             totalRunsToday = totalRunsToday,
                             onClick = { showNotificationsSheet = true },
-                            modifier = Modifier.padding(top = 14.dp)
+                            modifier = Modifier.padding(top = 10.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 3. 3D Elevated Routine Command Pill with official Gemini SVG Logo
                     RoutinePromptBar(
@@ -427,7 +427,7 @@ fun HomeScreen(
                         }
                     )
 
-                    Spacer(modifier = Modifier.height(26.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // 4. Crossfade between State 1 (Empty State) and State 2 (Specialized User Sparks State)
                     Crossfade(
@@ -1285,10 +1285,10 @@ private fun HomeSpecializedSparksSection(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Column(
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             sparks.forEach { spark ->
                 val isSelected = spark.id == selectedSparkId
@@ -1309,7 +1309,7 @@ private fun HomeSpecializedSparksSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 18.dp, start = 4.dp, end = 4.dp),
+                    .padding(top = 14.dp, start = 4.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
@@ -1407,7 +1407,7 @@ private fun Spark3DCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Clean IFX Squircle Icon Tile (Mail, Bell, Notebook, or Calendar)

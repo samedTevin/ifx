@@ -63,8 +63,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.window.DialogProperties
 import com.samedtevin.ifx.R
+import com.samedtevin.ifx.ui.components.IfxSignalBar
+import com.samedtevin.ifx.ui.components.IfxStepRail
 import com.samedtevin.ifx.ui.theme.IfxBlack
 import com.samedtevin.ifx.ui.theme.IfxLime
 import com.samedtevin.ifx.ui.theme.Inter
@@ -102,7 +108,8 @@ fun RegisterTopBar(
 }
 
 /**
- * Progress indicator showing the current registration step category and step counter.
+ * Progress indicator showing the IFX Step Rail (lime checkmarks on completed steps,
+ * pulsing black-with-lime-dot on current step, dashed lines to upcoming steps).
  */
 @Composable
 fun RegisterProgressBar(
@@ -110,45 +117,102 @@ fun RegisterProgressBar(
     categoryName: String,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = categoryName,
-                fontFamily = Inter,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 11.5.sp,
-                letterSpacing = 1.sp,
-                color = IfxBlack
-            )
+    IfxStepRail(
+        currentStep = currentStep,
+        totalSteps = 5,
+        categoryName = categoryName,
+        modifier = modifier
+    )
+}
 
-            Text(
-                text = "${currentStep + 1} of 5",
-                fontFamily = Inter,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                color = Color(0xFF6B7280)
+/**
+ * Compact, single-line search bar (`46.dp` height) with crisp `1.5.dp` black border,
+ * magnifying-glass icon, and instant clear button for Country & Dial Code pickers.
+ */
+@Composable
+fun IfxCompactSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(1.5.dp, IfxBlack, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Crisp Magnifying Glass Icon
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val stroke = 1.8.dp.toPx()
+            val radius = size.minDimension * 0.34f
+            val center = Offset(size.width * 0.42f, size.height * 0.42f)
+            drawCircle(
+                color = Color(0xFF4B5563),
+                radius = radius,
+                center = center,
+                style = Stroke(width = stroke)
+            )
+            drawLine(
+                color = Color(0xFF4B5563),
+                start = Offset(center.x + radius * 0.72f, center.y + radius * 0.72f),
+                end = Offset(size.width * 0.90f, size.height * 0.90f),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
-        // 5-segment step bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterStart
         ) {
-            for (stepIndex in 0 until 5) {
-                val isCompletedOrCurrent = stepIndex <= currentStep
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(if (isCompletedOrCurrent) IfxLime else Color(0xFFE5E7EB))
+            if (value.isEmpty()) {
+                Text(
+                    text = placeholder,
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    color = Color(0xFF9CA3AF),
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = IfxBlack
+                ),
+                cursorBrush = SolidColor(IfxBlack),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        if (value.isNotEmpty()) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF3F4F6))
+                    .clickable { onValueChange("") },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_close),
+                    contentDescription = "Clear search",
+                    tint = IfxBlack,
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
@@ -470,7 +534,7 @@ fun CountryPickerDialog(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White,
-            border = BorderStroke(1.5.dp, IfxLime),
+            border = BorderStroke(1.5.dp, IfxBlack),
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
@@ -496,7 +560,7 @@ fun CountryPickerDialog(
                     IconButton(
                         onClick = onDismissRequest,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(Color(0xFFF3F4F6))
                     ) {
@@ -504,25 +568,17 @@ fun CountryPickerDialog(
                             painter = painterResource(id = R.drawable.ic_close),
                             contentDescription = "Close",
                             tint = IfxBlack,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedTextField(
+                IfxCompactSearchField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search country...", color = Color(0xFF9CA3AF), fontSize = 14.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = IfxBlack,
-                        unfocusedBorderColor = Color(0xFFD1D5DB),
-                        cursorColor = IfxBlack
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "Search country"
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -589,7 +645,7 @@ fun PhotoSourceDialog(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White,
-            border = BorderStroke(1.5.dp, IfxLime),
+            border = BorderStroke(1.5.dp, IfxBlack),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
@@ -853,7 +909,7 @@ fun PhoneCodePickerDialog(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White,
-            border = BorderStroke(1.5.dp, IfxLime),
+            border = BorderStroke(1.5.dp, IfxBlack),
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
@@ -877,7 +933,7 @@ fun PhoneCodePickerDialog(
                     IconButton(
                         onClick = onDismissRequest,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(Color(0xFFF3F4F6))
                     ) {
@@ -885,25 +941,17 @@ fun PhoneCodePickerDialog(
                             painter = painterResource(id = R.drawable.ic_close),
                             contentDescription = "Close",
                             tint = IfxBlack,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedTextField(
+                IfxCompactSearchField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search country or dial code (+90, US)...", color = Color(0xFF9CA3AF), fontSize = 14.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = IfxBlack,
-                        unfocusedBorderColor = Color(0xFFD1D5DB),
-                        cursorColor = IfxBlack
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "Search country or +code"
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -967,56 +1015,56 @@ fun PhoneCodePickerDialog(
 }
 
 /**
- * Standard legal text for Terms of Service and Privacy Policy.
+ * Structured, human-centered editorial sections for IFX Privacy Policy & Trust.
+ * Designed in a clean editorial reader style (inspired by modern Trust & Privacy portals)
+ * with original IFX copy, an executive Trust quote card, and crisp readability.
  */
+data class LegalClauseSection(
+    val title: String,
+    val paragraphs: List<String>
+)
+
 object LegalTermsContent {
-    const val TEXT = """IFX TERMS OF SERVICE & PRIVACY POLICY
+    const val EFFECTIVE_DATE = "As of November 2026"
+    const val LEAD_HEADLINE = "Building trust takes more than legal checkboxes."
+    const val QUOTE_TEXT =
+        "Our goal is to help everyone automate their day while keeping full control over their personal information."
+    const val QUOTE_AUTHOR = "ifx Trust & Privacy Team"
 
-Last updated: October 2026
+    val introParagraphs = listOf(
+        "ifx takes the privacy of your personal information seriously. This Privacy Policy & Terms explains how we handle the data you share when creating an account, connecting services, and running Sparks on the ifx mobile app and cloud services.",
+        "By creating an account or using ifx, you confirm that you are at least 16 years old (or have permission from a parent or guardian if required in your region) and agree to these terms. If you do not agree, please do not use the service."
+    )
 
-Welcome to IFX. Please review our Terms of Service and Privacy Policy carefully before using the IFX application and platform.
-
-1. ACCEPTANCE OF TERMS
-By registering, creating an account, or accessing IFX, you represent and warrant that you are at least 13 years of age and agree to be bound by these Terms of Service. If you do not agree to these terms, you must not use or access our services.
-
-2. ACCOUNT SECURITY & USER RESPONSIBILITIES
-You agree to provide true, accurate, current, and complete registration information. You are solely responsible for safeguarding your login credentials and password. Any actions taken through your account are your responsibility. You agree to notify IFX immediately of any unauthorized use or security breach.
-
-3. DATA PRIVACY & INFORMATION COLLECTION
-We prioritize your privacy. We collect the following categories of information:
-- Identity & Contact Information: Your name, email address, date of birth, country/region, and phone number.
-- Preferences & Profile: Selected routines, automation experience level, occupation, and optional profile photograph.
-- Telemetry & Usage Data: Device model, OS version, performance logs, and interaction analytics to improve application stability.
-
-4. AUTOMATION & SPARKS PERMISSIONS
-IFX provides autonomous routine automation known as Sparks. When enabling Notifications and Exact Alarms permissions:
-- Notifications allow IFX to alert you and request confirmation before running critical tasks.
-- Exact Alarms allow IFX to trigger timely routines precisely at your scheduled hours.
-- You maintain full control over your Sparks and may disable or revoke these permissions in your system settings at any time.
-
-5. THIRD-PARTY INTEGRATIONS (GOOGLE SERVICES)
-Connecting your Google account grants IFX read and sync access strictly to calendar events and email drafts as required to fulfill your chosen Sparks automations. We never sell, transfer, or disclose your private communications to third-party advertisers or data brokers.
-
-6. DATA PROTECTION & RETENTION
-Your personal information is encrypted in transit using industry-standard TLS protocols and stored securely in cloud-hosted environments adhering to modern encryption standards. You may request full deletion of your account and personal data at any time via Settings -> Account -> Delete Account.
-
-7. PROHIBITED USES
-You agree not to use IFX for any unlawful, harassing, fraudulent, or harmful purposes, nor to attempt to reverse engineer, disrupt, or compromise the platform's infrastructure or security.
-
-8. DISCLAIMER OF WARRANTIES
-IFX is provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind, whether express or implied. We do not guarantee that automations will run without interruption or error.
-
-9. GOVERNING LAW
-These Terms shall be governed by and construed in accordance with applicable consumer protection and data privacy legislation.
-
-10. CONTACT US
-For any questions regarding our terms, data protection practices, or privacy rights, please contact our support team at legal@ifx.app.
-"""
+    val sections = listOf(
+        LegalClauseSection(
+            title = "Information you choose to share",
+            paragraphs = listOf(
+                "To personalize your workspace and sync your Sparks across devices, we store the profile details you provide during registration—such as your name, email address, country, optional phone number, and profile photo—along with your Sparks, projects, and notes.",
+                "We also record lightweight execution logs (whether a Spark ran, succeeded, or failed) so you can inspect your History tab and troubleshoot routines reliably."
+            )
+        ),
+        LegalClauseSection(
+            title = "Permissions & connected services",
+            paragraphs = listOf(
+                "Sparks only run the triggers and actions you explicitly enable. Notifications allow ifx to check with you before sensitive steps, and Exact Alarms let scheduled routines run right on time. You can turn off any permission in Android Settings whenever you like.",
+                "When you connect an external service such as Google or Microsoft, ifx requests only the minimum access needed to perform your active Sparks—for example, reading calendar deadlines or creating notes. We never sell your personal information or share your emails, notes, or schedules with advertisers."
+            )
+        ),
+        LegalClauseSection(
+            title = "Security, control & deleting your data",
+            paragraphs = listOf(
+                "All data transmitted between your phone and ifx servers is encrypted using TLS. You stay in complete control of your information and can permanently remove your account and synced data at any time from Profile -> Account & data -> Remove account.",
+                "We may update these terms as new capabilities launch, and we will always display the latest effective date here. If you have questions about how your data is protected, contact us anytime at privacy@ifx.app."
+            )
+        )
+    )
 }
 
 /**
- * Terms and Privacy Policy Alert Dialog:
- * Users must scroll to the bottom of the legal terms before the "OK / I Agree" button is enabled.
+ * Editorial Privacy Policy & Terms Reader Dialog:
+ * Clean top breadcrumb bar, bold editorial headline, IFX Trust commitment quote card,
+ * airy human-readable paragraphs, live IFX Signal Bar scroll progress, and crisp black frame.
  */
 @Composable
 fun TermsAndPrivacyDialog(
@@ -1027,6 +1075,13 @@ fun TermsAndPrivacyDialog(
     val canAccept by remember {
         derivedStateOf {
             scrollState.maxValue == 0 || scrollState.value >= (scrollState.maxValue - 40)
+        }
+    }
+    val scrollProgress by remember {
+        derivedStateOf {
+            if (scrollState.maxValue > 0) {
+                (scrollState.value.toFloat() / scrollState.maxValue).coerceIn(0f, 1f)
+            } else 1f
         }
     }
 
@@ -1044,29 +1099,55 @@ fun TermsAndPrivacyDialog(
             border = BorderStroke(1.5.dp, IfxBlack),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .fillMaxHeight(0.88f)
+                .padding(horizontal = 14.dp)
+                .fillMaxHeight(0.90f)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                // Header
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 1. Clean Top Breadcrumb Bar (like a dedicated Privacy & Trust portal header)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Terms & Privacy Policy",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 19.sp,
-                        color = IfxBlack,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Clean Split-Book / Document Icon
+                        Canvas(modifier = Modifier.size(20.dp)) {
+                            val stroke = 1.8.dp.toPx()
+                            drawRoundRect(
+                                color = IfxBlack,
+                                topLeft = Offset(1.dp.toPx(), 2.dp.toPx()),
+                                size = androidx.compose.ui.geometry.Size(
+                                    size.width - 2.dp.toPx(),
+                                    size.height - 4.dp.toPx()
+                                ),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.5.dp.toPx()),
+                                style = Stroke(width = stroke)
+                            )
+                            drawLine(
+                                color = IfxBlack,
+                                start = Offset(size.width * 0.42f, 2.dp.toPx()),
+                                end = Offset(size.width * 0.42f, size.height - 2.dp.toPx()),
+                                strokeWidth = stroke
+                            )
+                        }
+                        Text(
+                            text = "Privacy & Trust",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.5.sp,
+                            color = Color(0xFF4B5563)
+                        )
+                    }
 
                     IconButton(
                         onClick = onDismissRequest,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .background(Color(0xFFF3F4F6))
                     ) {
@@ -1074,130 +1155,229 @@ fun TermsAndPrivacyDialog(
                             painter = painterResource(id = R.drawable.ic_close),
                             contentDescription = "Close",
                             tint = IfxBlack,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 1.dp)
 
-                Text(
-                    text = if (canAccept) "Thank you for reviewing! You may now accept below." else "Please scroll through to the bottom to accept.",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.5.sp,
-                    color = if (canAccept) Color(0xFF16A34A) else Color(0xFF6B7280)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Reading progress indicator
-                val scrollProgress by remember {
-                    derivedStateOf {
-                        if (scrollState.maxValue > 0) {
-                            (scrollState.value.toFloat() / scrollState.maxValue).coerceIn(0f, 1f)
-                        } else 0f
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xFFE5E7EB))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(scrollProgress)
-                            .fillMaxHeight()
-                            .background(if (canAccept) Color(0xFF16A34A) else IfxLime)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Scrollable legal text
-                Box(
+                // 2. Scrollable Editorial Article Body (clean pure white, zero nested box clutter)
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFF9FAFB))
-                        .border(1.5.dp, IfxBlack, RoundedCornerShape(16.dp))
-                        .padding(16.dp)
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 22.dp, vertical = 22.dp)
                 ) {
+                    Text(
+                        text = "Privacy Policy",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 30.sp,
+                        lineHeight = 35.sp,
+                        letterSpacing = (-0.8).sp,
+                        color = IfxBlack
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = LegalTermsContent.EFFECTIVE_DATE,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.5.sp,
+                        color = Color(0xFF6B7280)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Text(
+                        text = LegalTermsContent.LEAD_HEADLINE,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.5.sp,
+                        lineHeight = 23.sp,
+                        color = IfxBlack
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Signature Editorial Trust Quote Card
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White)
+                            .border(1.2.dp, Color(0xFFE2E6EC), RoundedCornerShape(18.dp))
+                            .padding(20.dp)
                     ) {
                         Text(
-                            text = LegalTermsContent.TEXT,
+                            text = "\u201C",
                             fontFamily = Inter,
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 40.sp,
+                            lineHeight = 36.sp,
                             color = IfxBlack
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = LegalTermsContent.QUOTE_TEXT,
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            lineHeight = 25.sp,
+                            letterSpacing = (-0.3).sp,
+                            color = IfxBlack
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(IfxLime)
+                                    .border(1.dp, IfxBlack, CircleShape)
+                            )
+                            Text(
+                                text = LegalTermsContent.QUOTE_AUTHOR,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(22.dp))
+
+                    // Editorial Intro Paragraphs
+                    LegalTermsContent.introParagraphs.forEachIndexed { idx, para ->
+                        Text(
+                            text = para,
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.5.sp,
+                            lineHeight = 22.sp,
+                            color = Color(0xFF1F242D)
+                        )
+                        if (idx < LegalTermsContent.introParagraphs.lastIndex) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(22.dp))
+
+                    // Editorial Policy Sections
+                    LegalTermsContent.sections.forEachIndexed { idx, section ->
+                        Text(
+                            text = section.title,
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.5.sp,
+                            letterSpacing = (-0.2).sp,
+                            color = IfxBlack
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        section.paragraphs.forEachIndexed { pIdx, para ->
+                            Text(
+                                text = para,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 14.5.sp,
+                                lineHeight = 22.sp,
+                                color = Color(0xFF2D333D)
+                            )
+                            if (pIdx < section.paragraphs.lastIndex) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
+                        if (idx < LegalTermsContent.sections.lastIndex) {
+                            Spacer(modifier = Modifier.height(22.dp))
+                            HorizontalDivider(color = Color(0xFFF1F3F5), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 1.dp)
 
-                // Action buttons: Cancel and OK (Accept)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // 3. Docked Bottom Reading Progress + Accept Controls
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(horizontal = 20.dp, vertical = 14.dp)
                 ) {
-                    Button(
-                        onClick = onDismissRequest,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFF3F4F6),
-                            contentColor = IfxBlack
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                    ) {
-                        Text(
-                            text = "Cancel",
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = IfxBlack,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
+                    IfxSignalBar(
+                        progress = scrollProgress,
+                        showPercentagePill = true
+                    )
 
-                    Button(
-                        onClick = {
-                            onAccept()
-                            onDismissRequest()
-                        },
-                        enabled = canAccept,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = IfxLime,
-                            contentColor = IfxBlack,
-                            disabledContainerColor = Color(0xFFE5E7EB),
-                            disabledContentColor = Color(0xFF9CA3AF)
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier
-                            .weight(1.1f)
-                            .height(48.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (canAccept) "I Agree" else "Scroll to read",
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                        Button(
+                            onClick = onDismissRequest,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = IfxBlack
+                            ),
+                            border = BorderStroke(1.5.dp, IfxBlack),
+                            shape = RoundedCornerShape(22.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = IfxBlack,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                onAccept()
+                                onDismissRequest()
+                            },
+                            enabled = canAccept,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = IfxLime,
+                                contentColor = IfxBlack,
+                                disabledContainerColor = Color(0xFFE5E7EB),
+                                disabledContentColor = Color(0xFF6B7280)
+                            ),
+                            border = if (canAccept) BorderStroke(1.5.dp, IfxBlack) else null,
+                            shape = RoundedCornerShape(22.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .height(48.dp)
+                        ) {
+                            Text(
+                                text = if (canAccept) "I Agree" else "Scroll to bottom",
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }

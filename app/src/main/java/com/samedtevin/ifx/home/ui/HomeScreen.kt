@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -110,17 +111,80 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class SparkParamType {
+    TIME,
+    DAY,
+    KEYWORD,
+    ACTIVITY,
+    DURATION,
+    DESTINATION
+}
+
 /**
- * Data model representing a customizable user Spark automation card.
+ * Editable parameter for an IFX Official Spark so users can customize inputs (e.g., time 10:00 AM -> 2:00 PM,
+ * routine "Go to school" -> "Go to gym") while keeping the core automation flow reliable & engine-ready.
+ */
+data class SparkEditableParam(
+    val key: String,
+    val label: String,
+    val value: String,
+    val type: SparkParamType,
+    val appliesToTrigger: Boolean = true,
+    val presets: List<String> = emptyList()
+) : Serializable
+
+/**
+ * Data model representing a customizable Spark automation card + its flowchart & live countable state.
  */
 data class SparkRoutineItem(
     val id: String,
     val title: String,
     val subtitle: String,
     val enabled: Boolean = true,
-    val runsToday: Int = 4,
-    val iconRes: Int = R.drawable.ic_tile_mail
-) : Serializable
+    val runsToday: Int = 1,
+    val iconRes: Int = R.drawable.ic_tile_mail,
+    val secondaryIconRes: Int = R.drawable.ic_tile_cal,
+    val topic: SparkTopic = SparkTopic.CUSTOM,
+    val primaryIcon: SparkIconKind = SparkIconKind.GEMINI_AGENT,
+    val actionIcon: SparkIconKind = SparkIconKind.NOTEBOOK_PAGE,
+    val isOfficial: Boolean = false,
+    val activeUsersCount: Int = 1,
+    val totalRunsCount: Int = 0,
+    val about: String = "Runs automatically when your trigger matches.",
+    val triggerTitle: String = "New event arrives",
+    val triggerTemplate: String = "",
+    val actions: List<String> = listOf("Run automated action"),
+    val actionTemplates: List<String> = emptyList(),
+    val sparkCode: String = "IFX-1042",
+    val params: List<SparkEditableParam> = emptyList()
+) : Serializable {
+
+    private fun interpolate(template: String): String {
+        var result = template
+        params.forEach { param ->
+            result = result.replace("{${param.key}}", param.value)
+        }
+        return result
+    }
+
+    fun resolvedTriggerText(): String {
+        return if (triggerTemplate.isNotBlank()) interpolate(triggerTemplate) else triggerTitle
+    }
+
+    fun resolvedActions(): List<String> {
+        return if (actionTemplates.isNotEmpty()) {
+            actionTemplates.map { interpolate(it) }
+        } else {
+            actions
+        }
+    }
+
+    fun withSyncedSubtitle(): SparkRoutineItem {
+        if (!isOfficial || params.isEmpty()) return this
+        val summary = params.joinToString(" · ") { it.value }
+        return copy(subtitle = summary)
+    }
+}
 
 /**
  * Data model representing an interactive notification item in the Notification Center.
@@ -142,30 +206,326 @@ enum class HomeNavTab(val label: String) {
     HISTORY("History")
 }
 
+/**
+ * 8 foundational Sparks created by IFX. Each carries structured [SparkEditableParam] keys
+ * ready to bind directly to background workers/schedulers later. Users can customize inputs
+ * (time, routine, keyword, etc.), while fully editing only Sparks they create themselves.
+ */
 private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
     SparkRoutineItem(
         id = "deadline_email",
         title = "Deadline Email",
-        subtitle = "Adds to Calendar and\nNotebook",
+        subtitle = "deadline · 1 day before",
         enabled = true,
-        runsToday = 6,
-        iconRes = R.drawable.ic_tile_mail
+        runsToday = 3,
+        iconRes = R.drawable.ic_tile_mail,
+        secondaryIconRes = R.drawable.ic_tile_cal,
+        topic = SparkTopic.EMAIL,
+        primaryIcon = SparkIconKind.MAIL_DEADLINE,
+        actionIcon = SparkIconKind.CALENDAR_EVENT,
+        isOfficial = true,
+        activeUsersCount = 1428,
+        about = "Watches your inbox for deadline emails and saves them to Calendar and Notebook automatically.",
+        triggerTitle = "Email arrives containing deadline",
+        triggerTemplate = "Email arrives containing \"{keyword}\"",
+        actions = listOf("Add to Calendar & save a note"),
+        actionTemplates = listOf(
+            "Add Calendar reminder ({lead_time})",
+            "Save summary to Notebook"
+        ),
+        sparkCode = "IFX-DL01",
+        params = listOf(
+            SparkEditableParam(
+                key = "keyword",
+                label = "Keyword",
+                value = "deadline",
+                type = SparkParamType.KEYWORD,
+                appliesToTrigger = true,
+                presets = listOf("deadline", "due date", "exam", "submission")
+            ),
+            SparkEditableParam(
+                key = "lead_time",
+                label = "Reminder",
+                value = "1 day before",
+                type = SparkParamType.DURATION,
+                appliesToTrigger = false,
+                presets = listOf("1 hour before", "1 day before", "3 days before")
+            )
+        )
     ),
     SparkRoutineItem(
         id = "morning_briefing",
         title = "Morning Briefing",
-        subtitle = "Notifies you at 8:00",
+        subtitle = "08:00 AM · Weekdays",
         enabled = true,
-        runsToday = 4,
-        iconRes = R.drawable.ic_tile_bell
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_bell,
+        secondaryIconRes = R.drawable.ic_tile_cal,
+        topic = SparkTopic.SCHEDULE,
+        primaryIcon = SparkIconKind.SUN_BRIEFING,
+        actionIcon = SparkIconKind.BELL_ALERT,
+        isOfficial = true,
+        activeUsersCount = 2914,
+        about = "Sends one short briefing notification with your upcoming events and priorities.",
+        triggerTitle = "Clock hits 08:00 AM",
+        triggerTemplate = "Clock hits {time} ({repeat})",
+        actions = listOf("Send daily briefing notification"),
+        actionTemplates = listOf("Send daily briefing notification"),
+        sparkCode = "IFX-MB02",
+        params = listOf(
+            SparkEditableParam(
+                key = "time",
+                label = "Time",
+                value = "08:00 AM",
+                type = SparkParamType.TIME,
+                appliesToTrigger = true,
+                presets = listOf("07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM")
+            ),
+            SparkEditableParam(
+                key = "repeat",
+                label = "Repeat",
+                value = "Weekdays",
+                type = SparkParamType.DAY,
+                appliesToTrigger = true,
+                presets = listOf("Daily", "Weekdays", "Weekends")
+            )
+        )
+    ),
+    SparkRoutineItem(
+        id = "routine_reminder",
+        title = "Routine Reminder",
+        subtitle = "10:00 AM · Go to school",
+        enabled = true,
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_bell,
+        secondaryIconRes = R.drawable.ic_tile_notebook,
+        topic = SparkTopic.ROUTINE,
+        primaryIcon = SparkIconKind.CLOCK_TRIGGER,
+        actionIcon = SparkIconKind.HABIT_ROUTINE,
+        isOfficial = true,
+        activeUsersCount = 3650,
+        about = "Nudges you on schedule for any daily habit — switch the time or activity anytime.",
+        triggerTitle = "Clock hits 10:00 AM",
+        triggerTemplate = "Clock hits {time}",
+        actions = listOf("Remind: Go to school"),
+        actionTemplates = listOf("Send reminder: \"{activity}\""),
+        sparkCode = "IFX-RR03",
+        params = listOf(
+            SparkEditableParam(
+                key = "time",
+                label = "Time",
+                value = "10:00 AM",
+                type = SparkParamType.TIME,
+                appliesToTrigger = true,
+                presets = listOf("08:00 AM", "10:00 AM", "02:00 PM", "06:00 PM", "08:00 PM")
+            ),
+            SparkEditableParam(
+                key = "activity",
+                label = "Activity",
+                value = "Go to school",
+                type = SparkParamType.ACTIVITY,
+                appliesToTrigger = false,
+                presets = listOf("Go to school", "Go to gym", "Drink water", "Walk outside", "Read 20 pages")
+            )
+        )
+    ),
+    SparkRoutineItem(
+        id = "focus_session",
+        title = "Focus Session",
+        subtitle = "02:00 PM · 45 min · Deep Work",
+        enabled = false,
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_cal,
+        secondaryIconRes = R.drawable.ic_tile_bell,
+        topic = SparkTopic.FOCUS,
+        primaryIcon = SparkIconKind.FOCUS_TIMER,
+        actionIcon = SparkIconKind.BELL_ALERT,
+        isOfficial = true,
+        activeUsersCount = 1892,
+        about = "Starts a distraction-free block at your preferred time and notifies you when it ends.",
+        triggerTitle = "Clock hits 02:00 PM",
+        triggerTemplate = "Clock hits {time}",
+        actions = listOf("Start 45 min Deep Work session"),
+        actionTemplates = listOf("Start {duration} \"{label}\" session"),
+        sparkCode = "IFX-FS04",
+        params = listOf(
+            SparkEditableParam(
+                key = "time",
+                label = "Start time",
+                value = "02:00 PM",
+                type = SparkParamType.TIME,
+                appliesToTrigger = true,
+                presets = listOf("09:00 AM", "02:00 PM", "04:00 PM", "08:00 PM")
+            ),
+            SparkEditableParam(
+                key = "duration",
+                label = "Duration",
+                value = "45 min",
+                type = SparkParamType.DURATION,
+                appliesToTrigger = false,
+                presets = listOf("25 min", "45 min", "60 min", "90 min")
+            ),
+            SparkEditableParam(
+                key = "label",
+                label = "Session",
+                value = "Deep Work",
+                type = SparkParamType.ACTIVITY,
+                appliesToTrigger = false,
+                presets = listOf("Deep Work", "Study", "Coding", "Reading")
+            )
+        )
+    ),
+    SparkRoutineItem(
+        id = "meeting_headsup",
+        title = "Meeting Heads-Up",
+        subtitle = "15 min before · Primary",
+        enabled = false,
+        runsToday = 2,
+        iconRes = R.drawable.ic_tile_cal,
+        secondaryIconRes = R.drawable.ic_tile_notebook,
+        topic = SparkTopic.SCHEDULE,
+        primaryIcon = SparkIconKind.CALENDAR_EVENT,
+        actionIcon = SparkIconKind.NOTEBOOK_PAGE,
+        isOfficial = true,
+        activeUsersCount = 1105,
+        about = "Alerts you before Calendar events start and opens a quick note to capture takeaways.",
+        triggerTitle = "Calendar event starts in 15 min",
+        triggerTemplate = "{calendar} event starts {lead_time}",
+        actions = listOf("Send heads-up & open prep note"),
+        actionTemplates = listOf("Send heads-up & open prep note"),
+        sparkCode = "IFX-MH05",
+        params = listOf(
+            SparkEditableParam(
+                key = "lead_time",
+                label = "Alert before",
+                value = "15 min before",
+                type = SparkParamType.DURATION,
+                appliesToTrigger = true,
+                presets = listOf("5 min before", "15 min before", "30 min before")
+            ),
+            SparkEditableParam(
+                key = "calendar",
+                label = "Calendar",
+                value = "Primary",
+                type = SparkParamType.DESTINATION,
+                appliesToTrigger = true,
+                presets = listOf("Primary", "Work", "University")
+            )
+        )
     ),
     SparkRoutineItem(
         id = "weekly_review",
         title = "Weekly Review",
-        subtitle = "Saves a note every Sunday",
+        subtitle = "Sunday · 07:00 PM",
         enabled = false,
-        runsToday = 2,
-        iconRes = R.drawable.ic_tile_notebook
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_notebook,
+        secondaryIconRes = R.drawable.ic_tile_bell,
+        topic = SparkTopic.REVIEW,
+        primaryIcon = SparkIconKind.WEEKLY_CHART,
+        actionIcon = SparkIconKind.NOTEBOOK_PAGE,
+        isOfficial = true,
+        activeUsersCount = 946,
+        about = "Compiles your completed tasks and saves a clean weekly summary in your Notebook.",
+        triggerTitle = "Every Sunday at 07:00 PM",
+        triggerTemplate = "Every {day} at {time}",
+        actions = listOf("Save weekly summary to Notebook"),
+        actionTemplates = listOf("Save weekly summary to Notebook"),
+        sparkCode = "IFX-WR06",
+        params = listOf(
+            SparkEditableParam(
+                key = "day",
+                label = "Day",
+                value = "Sunday",
+                type = SparkParamType.DAY,
+                appliesToTrigger = true,
+                presets = listOf("Friday", "Saturday", "Sunday")
+            ),
+            SparkEditableParam(
+                key = "time",
+                label = "Time",
+                value = "07:00 PM",
+                type = SparkParamType.TIME,
+                appliesToTrigger = true,
+                presets = listOf("05:00 PM", "07:00 PM", "09:00 PM")
+            )
+        )
+    ),
+    SparkRoutineItem(
+        id = "night_winddown",
+        title = "Night Wind-Down",
+        subtitle = "11:00 PM · Prepare for sleep",
+        enabled = false,
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_bell,
+        secondaryIconRes = R.drawable.ic_tile_notebook,
+        topic = SparkTopic.NIGHT,
+        primaryIcon = SparkIconKind.MOON_SLEEP,
+        actionIcon = SparkIconKind.BELL_ALERT,
+        isOfficial = true,
+        activeUsersCount = 2318,
+        about = "Reminds you to wind down on time so tomorrow starts rested and organized.",
+        triggerTitle = "Clock hits 11:00 PM",
+        triggerTemplate = "Clock hits {time}",
+        actions = listOf("Remind: Prepare for sleep"),
+        actionTemplates = listOf("Remind: \"{activity}\""),
+        sparkCode = "IFX-NW07",
+        params = listOf(
+            SparkEditableParam(
+                key = "time",
+                label = "Bedtime",
+                value = "11:00 PM",
+                type = SparkParamType.TIME,
+                appliesToTrigger = true,
+                presets = listOf("10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM")
+            ),
+            SparkEditableParam(
+                key = "activity",
+                label = "Reminder",
+                value = "Prepare for sleep",
+                type = SparkParamType.ACTIVITY,
+                appliesToTrigger = false,
+                presets = listOf("Prepare for sleep", "Plan tomorrow", "Charge phone", "Read in bed")
+            )
+        )
+    ),
+    SparkRoutineItem(
+        id = "receipt_tracker",
+        title = "Receipt Tracker",
+        subtitle = "receipt · Expenses",
+        enabled = false,
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_mail,
+        secondaryIconRes = R.drawable.ic_tile_notebook,
+        topic = SparkTopic.FINANCE,
+        primaryIcon = SparkIconKind.RECEIPT_DOC,
+        actionIcon = SparkIconKind.NOTEBOOK_PAGE,
+        isOfficial = true,
+        activeUsersCount = 784,
+        about = "Catches purchase confirmations in your inbox and logs them neatly in your Notebook.",
+        triggerTitle = "Email arrives containing receipt",
+        triggerTemplate = "Email arrives containing \"{keyword}\"",
+        actions = listOf("Save entry to Expenses Notebook"),
+        actionTemplates = listOf("Log entry in \"{folder}\" Notebook"),
+        sparkCode = "IFX-RT08",
+        params = listOf(
+            SparkEditableParam(
+                key = "keyword",
+                label = "Keyword",
+                value = "receipt",
+                type = SparkParamType.KEYWORD,
+                appliesToTrigger = true,
+                presets = listOf("receipt", "invoice", "order", "payment")
+            ),
+            SparkEditableParam(
+                key = "folder",
+                label = "Notebook",
+                value = "Expenses",
+                type = SparkParamType.DESTINATION,
+                appliesToTrigger = false,
+                presets = listOf("Expenses", "Subscriptions", "Personal")
+            )
+        )
     )
 )
 
@@ -217,6 +577,9 @@ fun HomeScreen(
     var isEmptyState by rememberSaveable { mutableStateOf(initialEmptyState) }
     var sparks by rememberSaveable { mutableStateOf(defaultPreferenceSparks()) }
     var selectedSparkId by rememberSaveable { mutableStateOf<String?>("deadline_email") }
+    var detailSparkId by rememberSaveable { mutableStateOf<String?>(null) }
+    var editingSparkId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showAllSparks by rememberSaveable { mutableStateOf(false) }
     var geminiSuggestionAdded by rememberSaveable { mutableStateOf(false) }
 
     // Interactive Notifications state (supports Read/Unread toggle, Mark all read, Show All vs Unread filter)
@@ -229,6 +592,30 @@ fun HomeScreen(
     // Modal sheets for Profile/Photo customization and New Spark / Preference customization
     var showProfileSheet by rememberSaveable { mutableStateOf(false) }
     var showSparkBuilderSheet by rememberSaveable { mutableStateOf(false) }
+
+    // Guided App Tour state (shown once to newcomers; skipped/completed persisted in DataStore)
+    var showTourInviteDialog by rememberSaveable { mutableStateOf(false) }
+    var isTourActive by rememberSaveable { mutableStateOf(false) }
+    var tourStepIndex by rememberSaveable { mutableIntStateOf(0) }
+    var wasEmptyBeforeTour by rememberSaveable { mutableStateOf(initialEmptyState) }
+
+    LaunchedEffect(Unit) {
+        val prefs = UserPreferencesDataStore.readPreferences(context)
+        if (!prefs.hasSeenAppTour) {
+            showTourInviteDialog = true
+        }
+    }
+
+    // Automatically direct user to each tab & state as they step through the Guided App Tour
+    LaunchedEffect(isTourActive, tourStepIndex) {
+        if (isTourActive) {
+            val step = AppTourCatalog.steps.getOrNull(tourStepIndex) ?: return@LaunchedEffect
+            selectedTab = step.targetTab
+            if (step.targetTab == HomeNavTab.HOME) {
+                isEmptyState = !step.showSampleSparksOnHome && wasEmptyBeforeTour
+            }
+        }
+    }
 
     // Dynamic profile photo state: uses account.photoUri or studio avatar preset, falling back to initials placeholder
     var customPhotoUri by rememberSaveable(account?.photoUri) { mutableStateOf(account?.photoUri) }
@@ -283,6 +670,30 @@ fun HomeScreen(
     val totalRunsToday = sparks.filter { it.enabled }.sumOf { it.runsToday }
     val unreadNotificationsCount = notifications.count { !it.isRead }
 
+    fun toggleSparkEnabled(sparkId: String, targetEnabled: Boolean) {
+        sparks = sparks.map { item ->
+            if (item.id == sparkId && item.enabled != targetEnabled) {
+                val updatedUsers = if (item.isOfficial) {
+                    (item.activeUsersCount + if (targetEnabled) 1 else -1).coerceAtLeast(0)
+                } else {
+                    item.activeUsersCount
+                }
+                val updatedRuns = if (!item.isOfficial && targetEnabled) {
+                    item.totalRunsCount + 1
+                } else {
+                    item.totalRunsCount
+                }
+                item.copy(
+                    enabled = targetEnabled,
+                    activeUsersCount = updatedUsers,
+                    totalRunsCount = updatedRuns
+                )
+            } else {
+                item
+            }
+        }
+    }
+
     fun activateSpecializedState(preferredSparkId: String? = null, customPromptText: String? = null) {
         if (!customPromptText.isNullOrBlank()) {
             val cleanPrompt = customPromptText.trim()
@@ -299,10 +710,20 @@ fun HomeScreen(
             val newSpark = SparkRoutineItem(
                 id = newId,
                 title = cleanPrompt.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
-                subtitle = "Automated routine drafted by Gemini",
+                subtitle = "Custom Spark · by You",
                 enabled = true,
-                runsToday = 3,
-                iconRes = iconForPrompt
+                runsToday = 1,
+                iconRes = iconForPrompt,
+                secondaryIconRes = R.drawable.ic_tile_notebook,
+                isOfficial = false,
+                totalRunsCount = 1,
+                about = "Created by you: \"$cleanPrompt\". Open in Builder anytime to edit every step.",
+                triggerTitle = "When \"$cleanPrompt\" triggers",
+                actions = listOf(
+                    "Run your routine action",
+                    "Save log to History"
+                ),
+                sparkCode = "USR-${(1000..9999).random()}"
             )
             sparks = listOf(newSpark) + sparks
             selectedSparkId = newId
@@ -317,9 +738,7 @@ fun HomeScreen(
                 )
             ) + notifications
         } else if (preferredSparkId != null) {
-            sparks = sparks.map { item ->
-                if (item.id == preferredSparkId) item.copy(enabled = true) else item
-            }
+            toggleSparkEnabled(preferredSparkId, true)
             selectedSparkId = preferredSparkId
         }
         isEmptyState = false
@@ -336,23 +755,78 @@ fun HomeScreen(
         )
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
+            modifier = Modifier.fillMaxSize()
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 22.dp)
-                        .padding(top = 10.dp, bottom = 84.dp)
-                ) {
-                    // 1. Top Bar: Dynamic Profile Photo (with Initials Placeholder) + Crisp Notification Bell
+                val activeDetailSpark = detailSparkId?.let { id -> sparks.firstOrNull { it.id == id } }
+                val activeBuilderSpark = if (selectedTab == HomeNavTab.BUILDER) {
+                    editingSparkId?.let { id -> sparks.firstOrNull { it.id == id } }
+                } else {
+                    null
+                }
+
+                if (activeDetailSpark != null) {
+                    // Solid-background editorial Spark Detail page (NO grid background)
+                    SparkDetailScreen(
+                        spark = activeDetailSpark,
+                        onBackClick = { detailSparkId = null },
+                        onToggleEnabled = { isEnabled ->
+                            toggleSparkEnabled(activeDetailSpark.id, isEnabled)
+                        },
+                        onEditInBuilderClick = {
+                            editingSparkId = activeDetailSpark.id
+                            detailSparkId = null
+                            selectedTab = HomeNavTab.BUILDER
+                        }
+                    )
+                } else if (activeBuilderSpark != null) {
+                    // Interactive Drag-and-Drop Flowchart Canvas directly on IFX's existing grid background
+                    SparkBuilderEditor(
+                        spark = activeBuilderSpark,
+                        onSaveSpark = { updated ->
+                            sparks = sparks.map { item ->
+                                if (item.id == updated.id) updated else item
+                            }
+                            selectedSparkId = updated.id
+                            editingSparkId = null
+                            selectedTab = HomeNavTab.HOME
+                            detailSparkId = updated.id
+                        },
+                        onDeleteSpark = { target ->
+                            val remaining = sparks.filterNot { it.id == target.id }
+                            sparks = remaining
+                            editingSparkId = null
+                            if (selectedSparkId == target.id) {
+                                selectedSparkId = remaining.firstOrNull()?.id
+                            }
+                            if (remaining.isEmpty()) {
+                                isEmptyState = true
+                            }
+                            selectedTab = HomeNavTab.HOME
+                        },
+                        onBackToDetail = { target ->
+                            editingSparkId = null
+                            selectedTab = HomeNavTab.HOME
+                            detailSparkId = target.id
+                        }
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 22.dp)
+                            .padding(
+                                top = 10.dp,
+                                bottom = if (isTourActive) 220.dp else 84.dp
+                            )
+                    ) {
+                    // 1. Shared Top Bar: Dynamic Profile Photo (with Initials Placeholder) + Notification Bell
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -373,175 +847,280 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 2. Date & Greeting Header
-                    Text(
-                        text = formattedDate,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.5.sp,
-                        color = Color(0xFF686D76)
-                    )
+                    // Switch smoothly between the 5 main tab pages (also driven live by the Guided App Tour)
+                    Crossfade(
+                        targetState = selectedTab,
+                        animationSpec = tween(durationMillis = 220),
+                        label = "mainTabCrossfade"
+                    ) { activeTab ->
+                        when (activeTab) {
+                            HomeNavTab.HOME -> {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // 2. Date & Greeting Header
+                                    Text(
+                                        text = formattedDate,
+                                        fontFamily = Inter,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 14.5.sp,
+                                        color = Color(0xFF686D76)
+                                    )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
 
-                    Text(
-                        text = "Hi, $customDisplayName",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 34.sp,
-                        lineHeight = 38.sp,
-                        letterSpacing = (-1).sp,
-                        color = IfxBlack
-                    )
+                                    Text(
+                                        text = "Hi, $customDisplayName",
+                                        fontFamily = Inter,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 34.sp,
+                                        lineHeight = 38.sp,
+                                        letterSpacing = (-1).sp,
+                                        color = IfxBlack
+                                    )
 
-                    // Redesigned Creative Telemetry Strip for "Sparks watching · runs today"
-                    AnimatedVisibility(
-                        visible = !isEmptyState,
-                        enter = fadeIn(tween(220)) + expandVertically(tween(220)),
-                        exit = fadeOut(tween(180)) + shrinkVertically(tween(180))
-                    ) {
-                        SparksWatchingTelemetryBar(
-                            activeSparksCount = activeSparksCount,
-                            totalRunsToday = totalRunsToday,
-                            onClick = { showNotificationsSheet = true },
-                            modifier = Modifier.padding(top = 10.dp)
-                        )
+                                    // Redesigned Creative Telemetry Strip for "Sparks watching · runs today"
+                                    AnimatedVisibility(
+                                        visible = !isEmptyState,
+                                        enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                                        exit = fadeOut(tween(180)) + shrinkVertically(tween(180))
+                                    ) {
+                                        SparksWatchingTelemetryBar(
+                                            activeSparksCount = activeSparksCount,
+                                            totalRunsToday = totalRunsToday,
+                                            onClick = { showNotificationsSheet = true },
+                                            modifier = Modifier.padding(top = 10.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    // 3. 3D Elevated Routine Command Pill with official Gemini SVG Logo
+                                    RoutinePromptBar(
+                                        value = routinePrompt,
+                                        onValueChange = { routinePrompt = it },
+                                        onSubmit = {
+                                            keyboardController?.hide()
+                                            if (routinePrompt.isNotBlank()) {
+                                                val submitted = routinePrompt
+                                                routinePrompt = ""
+                                                activateSpecializedState(customPromptText = submitted)
+                                                Toast.makeText(context, "Spark created: $submitted", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                showSparkBuilderSheet = true
+                                            }
+                                        }
+                                    )
+
+                                    Spacer(modifier = Modifier.height(18.dp))
+
+                                    // 4. Crossfade between State 1 (Empty State) and State 2 (Specialized User Sparks State)
+                                    Crossfade(
+                                        targetState = isEmptyState,
+                                        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                                        label = "homeEmptyVsSpecializedState"
+                                    ) { empty ->
+                                        if (empty) {
+                                            HomeEmptyStateSection(
+                                                onPresetChipClick = { presetId, presetTitle ->
+                                                    activateSpecializedState(preferredSparkId = presetId)
+                                                    Toast.makeText(
+                                                        context,
+                                                        "$presetTitle activated in Your Sparks",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            )
+                                        } else {
+                                            HomeSpecializedSparksSection(
+                                                sparks = sparks,
+                                                selectedSparkId = selectedSparkId,
+                                                showAllSparks = showAllSparks,
+                                                showGeminiSuggestion = !geminiSuggestionAdded,
+                                                onSparkClick = { clickedSpark ->
+                                                    selectedSparkId = clickedSpark.id
+                                                    detailSparkId = clickedSpark.id
+                                                },
+                                                onSparkToggle = { toggledSpark, isEnabled ->
+                                                    toggleSparkEnabled(toggledSpark.id, isEnabled)
+                                                },
+                                                onSeeAllClick = {
+                                                    showAllSparks = !showAllSparks
+                                                },
+                                                onAddGeminiSuggestion = {
+                                                    val suggestedId = "gemini_deadline_notes"
+                                                    val newSpark = SparkRoutineItem(
+                                                        id = suggestedId,
+                                                        title = "Deadline Notes Sync",
+                                                        subtitle = "Saves deadline emails as Notebook notes",
+                                                        enabled = true,
+                                                        runsToday = 1,
+                                                        iconRes = R.drawable.ic_tile_cal,
+                                                        secondaryIconRes = R.drawable.ic_tile_notebook,
+                                                        isOfficial = false,
+                                                        totalRunsCount = 1,
+                                                        about = "Drafted from Gemini's suggestion to save deadline emails into Notebook notes.",
+                                                        triggerTitle = "Deadline email arrives in inbox",
+                                                        actions = listOf("Save formatted note to Notebook"),
+                                                        sparkCode = "USR-GM09"
+                                                    )
+                                                    sparks = listOf(newSpark) + sparks
+                                                    selectedSparkId = suggestedId
+                                                    geminiSuggestionAdded = true
+                                                    notifications = listOf(
+                                                        SparkNotificationItem(
+                                                            id = "notif_gemini_${System.currentTimeMillis()}",
+                                                            sparkTitle = "Deadline Notes Sync",
+                                                            message = "Added Gemini-suggested routine to Your Sparks.",
+                                                            timestamp = "Just now",
+                                                            isRead = false,
+                                                            iconRes = R.drawable.ic_tile_cal
+                                                        )
+                                                    ) + notifications
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Added Gemini suggestion to Your Sparks!",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            HomeNavTab.PROJECTS -> {
+                                ProjectsTabSection(
+                                    onCreateSparkClick = { showSparkBuilderSheet = true }
+                                )
+                            }
+                            HomeNavTab.BUILDER -> {
+                                val sparkBeingEdited = editingSparkId?.let { id -> sparks.firstOrNull { it.id == id } }
+                                BuilderTabSection(
+                                    sparks = sparks,
+                                    editingSpark = sparkBeingEdited,
+                                    onSelectSparkToEdit = { chosen ->
+                                        editingSparkId = chosen.id
+                                    },
+                                    onSaveSpark = { updated ->
+                                        sparks = sparks.map { item ->
+                                            if (item.id == updated.id) updated else item
+                                        }
+                                        selectedSparkId = updated.id
+                                        editingSparkId = null
+                                        selectedTab = HomeNavTab.HOME
+                                        detailSparkId = updated.id
+                                    },
+                                    onDeleteSpark = { target ->
+                                        val remaining = sparks.filterNot { it.id == target.id }
+                                        sparks = remaining
+                                        editingSparkId = null
+                                        if (selectedSparkId == target.id) {
+                                            selectedSparkId = remaining.firstOrNull()?.id
+                                        }
+                                        if (remaining.isEmpty()) {
+                                            isEmptyState = true
+                                        }
+                                        selectedTab = HomeNavTab.HOME
+                                    },
+                                    onBackToDetail = { target ->
+                                        editingSparkId = null
+                                        selectedTab = HomeNavTab.HOME
+                                        detailSparkId = target.id
+                                    },
+                                    onOpenBuilderClick = { showSparkBuilderSheet = true }
+                                )
+                            }
+                            HomeNavTab.NOTEBOOK -> {
+                                NotebookTabSection()
+                            }
+                            HomeNavTab.HISTORY -> {
+                                HistoryTabSection()
+                            }
+                        }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // 3. 3D Elevated Routine Command Pill with official Gemini SVG Logo
-                    RoutinePromptBar(
-                        value = routinePrompt,
-                        onValueChange = { routinePrompt = it },
-                        onSubmit = {
-                            keyboardController?.hide()
-                            if (routinePrompt.isNotBlank()) {
-                                val submitted = routinePrompt
-                                routinePrompt = ""
-                                activateSpecializedState(customPromptText = submitted)
-                                Toast.makeText(context, "Spark created: $submitted", Toast.LENGTH_SHORT).show()
+                // 5. 3D Floating Action Button ("+ New Spark") — hidden while active tour coachmark occupies bottom slot
+                if (!isTourActive && selectedTab == HomeNavTab.HOME) {
+                    NewSparkFab(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 22.dp, bottom = 18.dp),
+                        onClick = {
+                            if (isEmptyState) {
+                                activateSpecializedState(preferredSparkId = "deadline_email")
                             } else {
                                 showSparkBuilderSheet = true
                             }
                         }
                     )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // 4. Crossfade between State 1 (Empty State) and State 2 (Specialized User Sparks State)
-                    Crossfade(
-                        targetState = isEmptyState,
-                        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-                        label = "homeEmptyVsSpecializedState"
-                    ) { empty ->
-                        if (empty) {
-                            HomeEmptyStateSection(
-                                onPresetChipClick = { presetId, presetTitle ->
-                                    activateSpecializedState(preferredSparkId = presetId)
-                                    Toast.makeText(
-                                        context,
-                                        "$presetTitle activated in Your Sparks",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-                        } else {
-                            HomeSpecializedSparksSection(
-                                sparks = sparks,
-                                selectedSparkId = selectedSparkId,
-                                showGeminiSuggestion = !geminiSuggestionAdded,
-                                onSparkClick = { clickedSpark ->
-                                    selectedSparkId = if (selectedSparkId == clickedSpark.id) {
-                                        null
-                                    } else {
-                                        clickedSpark.id
-                                    }
-                                },
-                                onSparkToggle = { toggledSpark, isEnabled ->
-                                    sparks = sparks.map { item ->
-                                        if (item.id == toggledSpark.id) {
-                                            item.copy(enabled = isEnabled)
-                                        } else {
-                                            item
-                                        }
-                                    }
-                                },
-                                onSeeAllClick = {
-                                    showSparkBuilderSheet = true
-                                },
-                                onAddGeminiSuggestion = {
-                                    val suggestedId = "gemini_deadline_notes"
-                                    val newSpark = SparkRoutineItem(
-                                        id = suggestedId,
-                                        title = "Deadline Notes Sync",
-                                        subtitle = "Saves deadline emails as Notebook notes",
-                                        enabled = true,
-                                        runsToday = 4,
-                                        iconRes = R.drawable.ic_tile_cal
-                                    )
-                                    sparks = sparks + newSpark
-                                    selectedSparkId = suggestedId
-                                    geminiSuggestionAdded = true
-                                    notifications = listOf(
-                                        SparkNotificationItem(
-                                            id = "notif_gemini_${System.currentTimeMillis()}",
-                                            sparkTitle = "Deadline Notes Sync",
-                                            message = "Added Gemini-suggested routine to Your Sparks.",
-                                            timestamp = "Just now",
-                                            isRead = false,
-                                            iconRes = R.drawable.ic_tile_cal
-                                        )
-                                    ) + notifications
-                                    Toast.makeText(
-                                        context,
-                                        "Added Gemini suggestion to Your Sparks!",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-                        }
-                    }
                 }
 
-                // 5. 3D Floating Action Button ("+ New Spark")
-                NewSparkFab(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 22.dp, bottom = 18.dp),
-                    onClick = {
-                        if (isEmptyState) {
-                            activateSpecializedState(preferredSparkId = "deadline_email")
-                        } else {
-                            showSparkBuilderSheet = true
-                        }
-                    }
-                )
+                // Active Guided App Tour Coachmark Overlay (directs user through each page)
+                if (isTourActive) {
+                    val activeStep = AppTourCatalog.steps.getOrElse(tourStepIndex) { AppTourCatalog.steps.first() }
+                    AppTourCoachmarkCard(
+                        step = activeStep,
+                        totalSteps = AppTourCatalog.steps.size,
+                        onPrevious = {
+                            if (tourStepIndex > 0) {
+                                tourStepIndex--
+                            }
+                        },
+                        onNext = {
+                            if (tourStepIndex < AppTourCatalog.steps.lastIndex) {
+                                tourStepIndex++
+                            } else {
+                                isTourActive = false
+                                selectedTab = HomeNavTab.HOME
+                                isEmptyState = wasEmptyBeforeTour
+                                coroutineScope.launch {
+                                    UserPreferencesDataStore.setAppTourCompleted(context, true)
+                                }
+                                Toast.makeText(context, "Tour complete! You're ready to automate.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onSkip = {
+                            isTourActive = false
+                            selectedTab = HomeNavTab.HOME
+                            isEmptyState = wasEmptyBeforeTour
+                            coroutineScope.launch {
+                                UserPreferencesDataStore.setAppTourSkipped(context, true)
+                            }
+                            Toast.makeText(context, "Tour skipped. You can replay it anytime from Profile.", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
+                }
             }
 
             // 6. Full-Width Bottom Navigation Bar
             IfxBottomNavigationBar(
                 selectedTab = selectedTab,
                 onTabSelected = { tab ->
+                    detailSparkId = null
                     selectedTab = tab
-                    when (tab) {
-                        HomeNavTab.HOME -> {}
-                        HomeNavTab.PROJECTS -> {
-                            isEmptyState = false
-                        }
-                        HomeNavTab.BUILDER -> {
-                            showSparkBuilderSheet = true
-                        }
-                        HomeNavTab.NOTEBOOK -> {
-                            showNotificationsSheet = true
-                        }
-                        HomeNavTab.HISTORY -> {
-                            showNotificationsSheet = true
-                        }
-                    }
                 }
             )
         }
+    }
+
+    // Newcomer Guided App Tour Invite Dialog ("Would you like a quick tour?")
+    if (showTourInviteDialog) {
+        AppTourInviteDialog(
+            userName = customDisplayName,
+            onStartTour = {
+                showTourInviteDialog = false
+                wasEmptyBeforeTour = isEmptyState
+                tourStepIndex = 0
+                isTourActive = true
+            },
+            onSkip = {
+                showTourInviteDialog = false
+                coroutineScope.launch {
+                    UserPreferencesDataStore.setAppTourSkipped(context, true)
+                }
+            }
+        )
     }
 
     // Interactive Notifications Center Modal Sheet (Read / Unread / Show All / Mark All Read)
@@ -620,6 +1199,15 @@ fun HomeScreen(
                 isEmptyState = targetEmpty
                 showProfileSheet = false
             },
+            onReplayAppTour = {
+                showProfileSheet = false
+                wasEmptyBeforeTour = isEmptyState
+                tourStepIndex = 0
+                isTourActive = true
+                coroutineScope.launch {
+                    UserPreferencesDataStore.resetAppTour(context)
+                }
+            },
             onSwitchAccountClick = {
                 showProfileSheet = false
                 onSwitchAccountClick()
@@ -642,13 +1230,22 @@ fun HomeScreen(
             onDismiss = { showSparkBuilderSheet = false },
             onAddCustomSpark = { title, subtitle, chosenIconRes ->
                 val newId = "spark_${System.currentTimeMillis()}"
+                val cleanTitle = title.trim()
+                val cleanSub = subtitle.trim().ifBlank { "Runs automatically in background" }
                 val created = SparkRoutineItem(
                     id = newId,
-                    title = title.trim(),
-                    subtitle = subtitle.trim().ifBlank { "Runs automatically in background" },
+                    title = cleanTitle,
+                    subtitle = cleanSub,
                     enabled = true,
                     runsToday = 1,
-                    iconRes = chosenIconRes
+                    iconRes = chosenIconRes,
+                    secondaryIconRes = R.drawable.ic_tile_notebook,
+                    isOfficial = false,
+                    totalRunsCount = 1,
+                    about = "$cleanTitle — $cleanSub. Open in Builder anytime to edit the full flowchart.",
+                    triggerTitle = "Trigger for $cleanTitle",
+                    actions = listOf(cleanSub),
+                    sparkCode = "USR-${(1000..9999).random()}"
                 )
                 sparks = listOf(created) + sparks
                 selectedSparkId = newId
@@ -1231,6 +1828,7 @@ private fun EmptySparkSchematicIllustration(modifier: Modifier = Modifier) {
 private fun HomeSpecializedSparksSection(
     sparks: List<SparkRoutineItem>,
     selectedSparkId: String?,
+    showAllSparks: Boolean,
     showGeminiSuggestion: Boolean,
     onSparkClick: (SparkRoutineItem) -> Unit,
     onSparkToggle: (SparkRoutineItem, Boolean) -> Unit,
@@ -1238,6 +1836,8 @@ private fun HomeSpecializedSparksSection(
     onAddGeminiSuggestion: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val displayedSparks = if (showAllSparks || sparks.size <= 4) sparks else sparks.take(4)
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1272,17 +1872,19 @@ private fun HomeSpecializedSparksSection(
                 }
             }
 
-            Text(
-                text = "See all",
-                fontFamily = Inter,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                color = Color(0xFF686D76),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onSeeAllClick)
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            )
+            if (sparks.size > 4) {
+                Text(
+                    text = if (showAllSparks) "Show less" else "See all (${sparks.size})",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.5.sp,
+                    color = Color(0xFF686D76),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onSeeAllClick)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -1290,7 +1892,7 @@ private fun HomeSpecializedSparksSection(
         Column(
             verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
-            sparks.forEach { spark ->
+            displayedSparks.forEach { spark ->
                 val isSelected = spark.id == selectedSparkId
                 Spark3DCard(
                     spark = spark,
@@ -1410,13 +2012,15 @@ private fun Spark3DCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Clean IFX Squircle Icon Tile (Mail, Bell, Notebook, or Calendar)
-            Image(
-                painter = painterResource(id = spark.iconRes),
-                contentDescription = spark.title,
-                modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(16.dp))
+            // Distinct Topic-Specific IFX Vector Glyph Tile
+            SparkGlyphTile(
+                iconKind = spark.primaryIcon,
+                size = 50.dp,
+                cornerRadius = 16.dp,
+                containerColor = spark.topic.tileBg,
+                iconTint = spark.topic.tileIcon,
+                borderColor = IfxBlack.copy(alpha = 0.16f),
+                borderWidth = 1.2.dp
             )
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -1444,6 +2048,14 @@ private fun Spark3DCard(
                     color = subtitleColor,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(5.dp))
+                Text(
+                    text = if (spark.isOfficial) "by IFX" else "by You",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.5.sp,
+                    color = if (isSelected) IfxBlack.copy(alpha = 0.7f) else Color(0xFF8C929D)
                 )
             }
 
@@ -2082,6 +2694,7 @@ private fun ProfileAndPreferencesSheet(
     onUseInitialsPlaceholder: () -> Unit,
     onUpdateDisplayName: (String) -> Unit,
     onToggleEmptyState: (Boolean) -> Unit,
+    onReplayAppTour: () -> Unit,
     onSwitchAccountClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onSignInClick: () -> Unit
@@ -2333,7 +2946,30 @@ private fun ProfileAndPreferencesSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Replay Guided App Tour action
+            Surface(
+                onClick = onReplayAppTour,
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFFF6F7F2),
+                border = BorderStroke(1.2.dp, IfxBlack),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "Replay Guided App Tour",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = IfxBlack
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
             HorizontalDivider(color = Color(0xFFF3F4F6))
             Spacer(modifier = Modifier.height(16.dp))
 

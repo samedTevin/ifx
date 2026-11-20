@@ -125,7 +125,13 @@ enum class SparkIconKind {
     CLOCK_TRIGGER,
     NOTEBOOK_PAGE,
     BELL_ALERT,
-    GEMINI_AGENT
+    GEMINI_AGENT,
+    LIST_BRIEF,
+    SILENT_DND,
+    VIDEO_MEET,
+    TROPHY_STAR,
+    WALLET_VAULT,
+    BED_REST
 }
 
 /**
@@ -333,6 +339,79 @@ fun SparkGlyphVector(
                     close()
                 }
                 drawPath(star, color = tint, style = strokeStyle)
+            }
+
+            SparkIconKind.LIST_BRIEF -> {
+                // Crisp agenda checklist (3 bullet dots + lines)
+                listOf(0.26f, 0.50f, 0.74f).forEach { y ->
+                    drawCircle(tint, radius = w * 0.06f, center = Offset(w * 0.18f, h * y))
+                    drawLine(tint, Offset(w * 0.34f, h * y), Offset(w * 0.86f, h * y), stroke, StrokeCap.Round)
+                }
+            }
+
+            SparkIconKind.SILENT_DND -> {
+                // Do-not-disturb circle with horizontal bar
+                drawCircle(tint, radius = w * 0.38f, center = Offset(w * 0.50f, h * 0.50f), style = strokeStyle)
+                drawLine(tint, Offset(w * 0.30f, h * 0.50f), Offset(w * 0.70f, h * 0.50f), stroke * 1.15f, StrokeCap.Round)
+            }
+
+            SparkIconKind.VIDEO_MEET -> {
+                // Video meeting camera frame + lens cone
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(w * 0.10f, h * 0.26f),
+                    size = Size(w * 0.54f, h * 0.48f),
+                    cornerRadius = CornerRadius(w * 0.12f, w * 0.12f),
+                    style = strokeStyle
+                )
+                val cone = Path().apply {
+                    moveTo(w * 0.64f, h * 0.42f)
+                    lineTo(w * 0.88f, h * 0.28f)
+                    lineTo(w * 0.88f, h * 0.72f)
+                    lineTo(w * 0.64f, h * 0.58f)
+                    close()
+                }
+                drawPath(cone, color = tint, style = strokeStyle)
+            }
+
+            SparkIconKind.TROPHY_STAR -> {
+                // Crisp ribbon / summary badge
+                drawCircle(tint, radius = w * 0.26f, center = Offset(w * 0.50f, h * 0.38f), style = strokeStyle)
+                val ribbons = Path().apply {
+                    moveTo(w * 0.34f, h * 0.60f)
+                    lineTo(w * 0.28f, h * 0.88f)
+                    lineTo(w * 0.50f, h * 0.78f)
+                    lineTo(w * 0.72f, h * 0.88f)
+                    lineTo(w * 0.66f, h * 0.60f)
+                }
+                drawPath(ribbons, color = tint, style = strokeStyle)
+            }
+
+            SparkIconKind.WALLET_VAULT -> {
+                // Clean wallet / expense ledger
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(w * 0.10f, h * 0.22f),
+                    size = Size(w * 0.80f, h * 0.56f),
+                    cornerRadius = CornerRadius(w * 0.14f, w * 0.14f),
+                    style = strokeStyle
+                )
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(w * 0.58f, h * 0.42f),
+                    size = Size(w * 0.32f, h * 0.18f),
+                    cornerRadius = CornerRadius(w * 0.08f, w * 0.08f),
+                    style = strokeStyle
+                )
+            }
+
+            SparkIconKind.BED_REST -> {
+                // Minimal bed / wind-down icon
+                drawLine(tint, Offset(w * 0.12f, h * 0.30f), Offset(w * 0.12f, h * 0.76f), stroke, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.12f, h * 0.62f), Offset(w * 0.88f, h * 0.62f), stroke, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.88f, h * 0.50f), Offset(w * 0.88f, h * 0.76f), stroke, StrokeCap.Round)
+                drawCircle(tint, radius = w * 0.09f, center = Offset(w * 0.30f, h * 0.48f), style = strokeStyle)
+                drawLine(tint, Offset(w * 0.46f, h * 0.50f), Offset(w * 0.88f, h * 0.50f), stroke, StrokeCap.Round)
             }
         }
     }

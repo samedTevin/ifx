@@ -168,6 +168,9 @@ fun BuilderTabSection(
     if (editingSpark != null) {
         SparkBuilderEditor(
             spark = editingSpark,
+            allSparks = sparks,
+            onSelectSpark = onSelectSparkToEdit,
+            onCreateWithAiClick = onOpenBuilderClick,
             onSaveSpark = onSaveSpark,
             onDeleteSpark = onDeleteSpark,
             onBackToDetail = onBackToDetail,

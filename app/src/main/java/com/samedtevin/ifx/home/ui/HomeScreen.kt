@@ -8,8 +8,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -21,6 +30,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +46,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -80,6 +91,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -195,7 +207,8 @@ data class SparkNotificationItem(
     val message: String,
     val timestamp: String,
     val isRead: Boolean = false,
-    val iconRes: Int = R.drawable.ic_tile_mail
+    val iconRes: Int = R.drawable.ic_tile_mail,
+    val iconKind: SparkIconKind = SparkIconKind.BELL_ALERT
 ) : Serializable
 
 enum class HomeNavTab(val label: String) {
@@ -204,6 +217,40 @@ enum class HomeNavTab(val label: String) {
     BUILDER("Builder"),
     NOTEBOOK("Notebook"),
     HISTORY("History")
+}
+
+enum class SparkCategory(
+    val label: String,
+    val recommendation: String,
+    val iconKind: SparkIconKind
+) {
+    RECOMMENDED("Recommended", "Picked to automate your daily essentials", SparkIconKind.GEMINI_AGENT),
+    MOST_POPULAR("Most Popular", "Most connected Sparks across IFX", SparkIconKind.WEEKLY_CHART),
+    HEALTHY("Healthy", "Suggested for better rest, habits, and focus", SparkIconKind.HABIT_ROUTINE),
+    PRODUCTIVITY("Productivity", "Keep deadlines, briefings, and meetings on track", SparkIconKind.CALENDAR_EVENT),
+    FINANCE("Finance", "Track receipts and bill due dates automatically", SparkIconKind.RECEIPT_DOC),
+    MY_SPARKS("My Sparks", "Custom workflows created by you or AI", SparkIconKind.CLOCK_TRIGGER),
+    ALL("All", "Browse all official and custom Sparks", SparkIconKind.BELL_ALERT)
+}
+
+private fun filterSparksByCategory(
+    sparks: List<SparkRoutineItem>,
+    category: SparkCategory
+): List<SparkRoutineItem> = when (category) {
+    SparkCategory.RECOMMENDED -> {
+        val featuredIds = setOf("deadline_email", "morning_briefing", "routine_reminder", "focus_session")
+        sparks.filter { !it.isOfficial || it.id in featuredIds }
+    }
+    SparkCategory.MOST_POPULAR -> sparks.sortedByDescending { it.activeUsersCount }
+    SparkCategory.HEALTHY -> sparks.filter {
+        it.topic == SparkTopic.ROUTINE || it.topic == SparkTopic.NIGHT || it.topic == SparkTopic.FOCUS
+    }
+    SparkCategory.PRODUCTIVITY -> sparks.filter {
+        it.topic == SparkTopic.EMAIL || it.topic == SparkTopic.SCHEDULE || it.topic == SparkTopic.REVIEW
+    }
+    SparkCategory.FINANCE -> sparks.filter { it.topic == SparkTopic.FINANCE }
+    SparkCategory.MY_SPARKS -> sparks.filter { !it.isOfficial }
+    SparkCategory.ALL -> sparks
 }
 
 /**
@@ -263,7 +310,7 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
         secondaryIconRes = R.drawable.ic_tile_cal,
         topic = SparkTopic.SCHEDULE,
         primaryIcon = SparkIconKind.SUN_BRIEFING,
-        actionIcon = SparkIconKind.BELL_ALERT,
+        actionIcon = SparkIconKind.LIST_BRIEF,
         isOfficial = true,
         activeUsersCount = 2914,
         about = "Sends one short briefing notification with your upcoming events and priorities.",
@@ -339,7 +386,7 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
         secondaryIconRes = R.drawable.ic_tile_bell,
         topic = SparkTopic.FOCUS,
         primaryIcon = SparkIconKind.FOCUS_TIMER,
-        actionIcon = SparkIconKind.BELL_ALERT,
+        actionIcon = SparkIconKind.SILENT_DND,
         isOfficial = true,
         activeUsersCount = 1892,
         about = "Starts a distraction-free block at your preferred time and notifies you when it ends.",
@@ -385,7 +432,7 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
         secondaryIconRes = R.drawable.ic_tile_notebook,
         topic = SparkTopic.SCHEDULE,
         primaryIcon = SparkIconKind.CALENDAR_EVENT,
-        actionIcon = SparkIconKind.NOTEBOOK_PAGE,
+        actionIcon = SparkIconKind.VIDEO_MEET,
         isOfficial = true,
         activeUsersCount = 1105,
         about = "Alerts you before Calendar events start and opens a quick note to capture takeaways.",
@@ -423,7 +470,7 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
         secondaryIconRes = R.drawable.ic_tile_bell,
         topic = SparkTopic.REVIEW,
         primaryIcon = SparkIconKind.WEEKLY_CHART,
-        actionIcon = SparkIconKind.NOTEBOOK_PAGE,
+        actionIcon = SparkIconKind.TROPHY_STAR,
         isOfficial = true,
         activeUsersCount = 946,
         about = "Compiles your completed tasks and saves a clean weekly summary in your Notebook.",
@@ -461,7 +508,7 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
         secondaryIconRes = R.drawable.ic_tile_notebook,
         topic = SparkTopic.NIGHT,
         primaryIcon = SparkIconKind.MOON_SLEEP,
-        actionIcon = SparkIconKind.BELL_ALERT,
+        actionIcon = SparkIconKind.BED_REST,
         isOfficial = true,
         activeUsersCount = 2318,
         about = "Reminds you to wind down on time so tomorrow starts rested and organized.",
@@ -499,7 +546,7 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
         secondaryIconRes = R.drawable.ic_tile_notebook,
         topic = SparkTopic.FINANCE,
         primaryIcon = SparkIconKind.RECEIPT_DOC,
-        actionIcon = SparkIconKind.NOTEBOOK_PAGE,
+        actionIcon = SparkIconKind.WALLET_VAULT,
         isOfficial = true,
         activeUsersCount = 784,
         about = "Catches purchase confirmations in your inbox and logs them neatly in your Notebook.",
@@ -526,6 +573,42 @@ private fun defaultPreferenceSparks(): List<SparkRoutineItem> = listOf(
                 presets = listOf("Expenses", "Subscriptions", "Personal")
             )
         )
+    ),
+    SparkRoutineItem(
+        id = "bill_due_alert",
+        title = "Bill Due Alert",
+        subtitle = "bill due · 2 days before",
+        enabled = false,
+        runsToday = 1,
+        iconRes = R.drawable.ic_tile_cal,
+        secondaryIconRes = R.drawable.ic_tile_bell,
+        topic = SparkTopic.FINANCE,
+        primaryIcon = SparkIconKind.WALLET_VAULT,
+        actionIcon = SparkIconKind.BELL_ALERT,
+        isOfficial = true,
+        activeUsersCount = 1265,
+        about = "Spots upcoming bills in your inbox and reminds you before the due date.",
+        triggerTitle = "Email arrives containing bill due",
+        triggerTemplate = "Email arrives containing \"{keyword}\"",
+        actions = listOf("Remind 2 days before due date"),
+        actionTemplates = listOf("Send reminder ({lead_time})"),
+        sparkCode = "IFX-BD09",
+        params = listOf(
+            SparkEditableParam(
+                key = "keyword",
+                label = "Keyword",
+                value = "bill due",
+                type = SparkParamType.KEYWORD,
+                appliesToTrigger = true
+            ),
+            SparkEditableParam(
+                key = "lead_time",
+                label = "Reminder",
+                value = "2 days before",
+                type = SparkParamType.DURATION,
+                appliesToTrigger = false
+            )
+        )
     )
 )
 
@@ -533,26 +616,29 @@ private fun defaultNotifications(): List<SparkNotificationItem> = listOf(
     SparkNotificationItem(
         id = "notif_1",
         sparkTitle = "Deadline Email",
-        message = "Detected 'Q4 Design Review' due Friday at 5:00 PM — added to Calendar & Notebook.",
+        message = "Added 'Q4 Design Review' (due Friday 5:00 PM) to Calendar and Notebook.",
         timestamp = "12m ago",
         isRead = false,
-        iconRes = R.drawable.ic_tile_mail
+        iconRes = R.drawable.ic_tile_mail,
+        iconKind = SparkIconKind.MAIL_DEADLINE
     ),
     SparkNotificationItem(
         id = "notif_2",
         sparkTitle = "Morning Briefing",
-        message = "Delivered your 8:00 AM daily briefing with 3 priority tasks and schedule overview.",
+        message = "Sent your 8:00 AM daily agenda with 3 priority items.",
         timestamp = "2h ago",
         isRead = false,
-        iconRes = R.drawable.ic_tile_bell
+        iconRes = R.drawable.ic_tile_bell,
+        iconKind = SparkIconKind.SUN_BRIEFING
     ),
     SparkNotificationItem(
         id = "notif_3",
         sparkTitle = "Weekly Review",
-        message = "Compiled 9 completed action items into your Sunday Weekly Review note.",
+        message = "Saved 9 completed items into your Sunday review note.",
         timestamp = "Yesterday",
         isRead = true,
-        iconRes = R.drawable.ic_tile_notebook
+        iconRes = R.drawable.ic_tile_notebook,
+        iconKind = SparkIconKind.WEEKLY_CHART
     )
 )
 
@@ -569,7 +655,6 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val keyboardController = LocalSoftwareKeyboardController.current
 
     val isGuest = account == null || account.provider.equals("Guest", ignoreCase = true)
 
@@ -579,19 +664,19 @@ fun HomeScreen(
     var selectedSparkId by rememberSaveable { mutableStateOf<String?>("deadline_email") }
     var detailSparkId by rememberSaveable { mutableStateOf<String?>(null) }
     var editingSparkId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showAllSparks by rememberSaveable { mutableStateOf(false) }
+    var selectedCategory by rememberSaveable { mutableStateOf(SparkCategory.RECOMMENDED) }
     var geminiSuggestionAdded by rememberSaveable { mutableStateOf(false) }
 
-    // Interactive Notifications state (supports Read/Unread toggle, Mark all read, Show All vs Unread filter)
+    // Interactive Notifications state
     var notifications by rememberSaveable { mutableStateOf(defaultNotifications()) }
     var showNotificationsSheet by rememberSaveable { mutableStateOf(false) }
 
-    var routinePrompt by rememberSaveable { mutableStateOf("") }
     var selectedTab by rememberSaveable { mutableStateOf(HomeNavTab.HOME) }
 
-    // Modal sheets for Profile/Photo customization and New Spark / Preference customization
+    // Modal sheets for Profile/Photo customization and AI Spark Creator
     var showProfileSheet by rememberSaveable { mutableStateOf(false) }
     var showSparkBuilderSheet by rememberSaveable { mutableStateOf(false) }
+    var showAiCreatorSheet by rememberSaveable { mutableStateOf(false) }
 
     // Guided App Tour state (shown once to newcomers; skipped/completed persisted in DataStore)
     var showTourInviteDialog by rememberSaveable { mutableStateOf(false) }
@@ -763,8 +848,10 @@ fun HomeScreen(
                     .fillMaxWidth()
             ) {
                 val activeDetailSpark = detailSparkId?.let { id -> sparks.firstOrNull { it.id == id } }
-                val activeBuilderSpark = if (selectedTab == HomeNavTab.BUILDER) {
+                val activeBuilderSpark = if (selectedTab == HomeNavTab.BUILDER && !isTourActive) {
                     editingSparkId?.let { id -> sparks.firstOrNull { it.id == id } }
+                        ?: selectedSparkId?.let { id -> sparks.firstOrNull { it.id == id } }
+                        ?: sparks.firstOrNull()
                 } else {
                     null
                 }
@@ -784,29 +871,33 @@ fun HomeScreen(
                         }
                     )
                 } else if (activeBuilderSpark != null) {
-                    // Interactive Drag-and-Drop Flowchart Canvas directly on IFX's existing grid background
+                    // Interactive Drag-and-Drop Workflow Canvas directly on IFX's existing grid background
                     SparkBuilderEditor(
                         spark = activeBuilderSpark,
+                        allSparks = sparks,
+                        onSelectSpark = { chosen ->
+                            editingSparkId = chosen.id
+                            selectedSparkId = chosen.id
+                        },
+                        onCreateWithAiClick = { showAiCreatorSheet = true },
                         onSaveSpark = { updated ->
                             sparks = sparks.map { item ->
                                 if (item.id == updated.id) updated else item
                             }
                             selectedSparkId = updated.id
-                            editingSparkId = null
-                            selectedTab = HomeNavTab.HOME
-                            detailSparkId = updated.id
+                            editingSparkId = updated.id
                         },
                         onDeleteSpark = { target ->
                             val remaining = sparks.filterNot { it.id == target.id }
                             sparks = remaining
-                            editingSparkId = null
+                            editingSparkId = remaining.firstOrNull()?.id
                             if (selectedSparkId == target.id) {
                                 selectedSparkId = remaining.firstOrNull()?.id
                             }
                             if (remaining.isEmpty()) {
                                 isEmptyState = true
+                                selectedTab = HomeNavTab.HOME
                             }
-                            selectedTab = HomeNavTab.HOME
                         },
                         onBackToDetail = { target ->
                             editingSparkId = null
@@ -877,40 +968,17 @@ fun HomeScreen(
                                         color = IfxBlack
                                     )
 
-                                    // Redesigned Creative Telemetry Strip for "Sparks watching · runs today"
-                                    AnimatedVisibility(
-                                        visible = !isEmptyState,
-                                        enter = fadeIn(tween(220)) + expandVertically(tween(220)),
-                                        exit = fadeOut(tween(180)) + shrinkVertically(tween(180))
-                                    ) {
-                                        SparksWatchingTelemetryBar(
-                                            activeSparksCount = activeSparksCount,
-                                            totalRunsToday = totalRunsToday,
-                                            onClick = { showNotificationsSheet = true },
-                                            modifier = Modifier.padding(top = 10.dp)
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // 3. Swappable Category Box Strip (Recommended, Most Popular, Healthy, Productivity, Finance, My Sparks, All)
+                                    if (!isEmptyState) {
+                                        SparkCategoryMenuBar(
+                                            sparks = sparks,
+                                            selectedCategory = selectedCategory,
+                                            onCategorySelected = { selectedCategory = it }
                                         )
+                                        Spacer(modifier = Modifier.height(18.dp))
                                     }
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    // 3. 3D Elevated Routine Command Pill with official Gemini SVG Logo
-                                    RoutinePromptBar(
-                                        value = routinePrompt,
-                                        onValueChange = { routinePrompt = it },
-                                        onSubmit = {
-                                            keyboardController?.hide()
-                                            if (routinePrompt.isNotBlank()) {
-                                                val submitted = routinePrompt
-                                                routinePrompt = ""
-                                                activateSpecializedState(customPromptText = submitted)
-                                                Toast.makeText(context, "Spark created: $submitted", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                showSparkBuilderSheet = true
-                                            }
-                                        }
-                                    )
-
-                                    Spacer(modifier = Modifier.height(18.dp))
 
                                     // 4. Crossfade between State 1 (Empty State) and State 2 (Specialized User Sparks State)
                                     Crossfade(
@@ -930,11 +998,14 @@ fun HomeScreen(
                                                 }
                                             )
                                         } else {
+                                            val categorySparks = remember(sparks, selectedCategory) {
+                                                filterSparksByCategory(sparks, selectedCategory)
+                                            }
                                             HomeSpecializedSparksSection(
-                                                sparks = sparks,
+                                                categoryTitle = selectedCategory.label,
+                                                categoryRecommendation = selectedCategory.recommendation,
+                                                sparks = categorySparks,
                                                 selectedSparkId = selectedSparkId,
-                                                showAllSparks = showAllSparks,
-                                                showGeminiSuggestion = !geminiSuggestionAdded,
                                                 onSparkClick = { clickedSpark ->
                                                     selectedSparkId = clickedSpark.id
                                                     detailSparkId = clickedSpark.id
@@ -942,44 +1013,8 @@ fun HomeScreen(
                                                 onSparkToggle = { toggledSpark, isEnabled ->
                                                     toggleSparkEnabled(toggledSpark.id, isEnabled)
                                                 },
-                                                onSeeAllClick = {
-                                                    showAllSparks = !showAllSparks
-                                                },
-                                                onAddGeminiSuggestion = {
-                                                    val suggestedId = "gemini_deadline_notes"
-                                                    val newSpark = SparkRoutineItem(
-                                                        id = suggestedId,
-                                                        title = "Deadline Notes Sync",
-                                                        subtitle = "Saves deadline emails as Notebook notes",
-                                                        enabled = true,
-                                                        runsToday = 1,
-                                                        iconRes = R.drawable.ic_tile_cal,
-                                                        secondaryIconRes = R.drawable.ic_tile_notebook,
-                                                        isOfficial = false,
-                                                        totalRunsCount = 1,
-                                                        about = "Drafted from Gemini's suggestion to save deadline emails into Notebook notes.",
-                                                        triggerTitle = "Deadline email arrives in inbox",
-                                                        actions = listOf("Save formatted note to Notebook"),
-                                                        sparkCode = "USR-GM09"
-                                                    )
-                                                    sparks = listOf(newSpark) + sparks
-                                                    selectedSparkId = suggestedId
-                                                    geminiSuggestionAdded = true
-                                                    notifications = listOf(
-                                                        SparkNotificationItem(
-                                                            id = "notif_gemini_${System.currentTimeMillis()}",
-                                                            sparkTitle = "Deadline Notes Sync",
-                                                            message = "Added Gemini-suggested routine to Your Sparks.",
-                                                            timestamp = "Just now",
-                                                            isRead = false,
-                                                            iconRes = R.drawable.ic_tile_cal
-                                                        )
-                                                    ) + notifications
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Added Gemini suggestion to Your Sparks!",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
+                                                onCreateCustomSparkClick = {
+                                                    showAiCreatorSheet = true
                                                 }
                                             )
                                         }
@@ -1038,7 +1073,7 @@ fun HomeScreen(
                     }
                 }
 
-                // 5. 3D Floating Action Button ("+ New Spark") — hidden while active tour coachmark occupies bottom slot
+                // 5. 3D Floating Action Button ("+ New Spark") -> Opens AI Spark Creator
                 if (!isTourActive && selectedTab == HomeNavTab.HOME) {
                     NewSparkFab(
                         modifier = Modifier
@@ -1048,7 +1083,7 @@ fun HomeScreen(
                             if (isEmptyState) {
                                 activateSpecializedState(preferredSparkId = "deadline_email")
                             } else {
-                                showSparkBuilderSheet = true
+                                showAiCreatorSheet = true
                             }
                         }
                     )
@@ -1102,6 +1137,33 @@ fun HomeScreen(
                 }
             )
         }
+    }
+
+    // AI Spark Creator Sheet (describe what you want -> Gemini drafts workflow in ~1s -> opens in Builder)
+    if (showAiCreatorSheet) {
+        AiSparkCreatorSheet(
+            onDismiss = { showAiCreatorSheet = false },
+            onSparkGenerated = { generated ->
+                sparks = listOf(generated) + sparks
+                selectedSparkId = generated.id
+                editingSparkId = generated.id
+                isEmptyState = false
+                showAiCreatorSheet = false
+                detailSparkId = null
+                selectedTab = HomeNavTab.BUILDER
+                notifications = listOf(
+                    SparkNotificationItem(
+                        id = "notif_ai_${System.currentTimeMillis()}",
+                        sparkTitle = generated.title,
+                        message = "Created with AI and opened in Builder.",
+                        timestamp = "Just now",
+                        isRead = false,
+                        iconKind = generated.primaryIcon
+                    )
+                ) + notifications
+                Toast.makeText(context, "Created \"${generated.title}\" in Builder", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
     // Newcomer Guided App Tour Invite Dialog ("Would you like a quick tour?")
@@ -1303,102 +1365,87 @@ private fun IfxSquareGridBackground(modifier: Modifier = Modifier) {
 }
 
 /**
- * Creative 3D Telemetry Bar replacing the plain "3 Sparks watching · 12 runs today" text.
- * Features a solid IfxBlack status badge with an Electric Lime indicator, active Spark counter,
- * and today's automation run count in a tactile segmented pill card.
+ * Minimal Horizontal Scrollable Category Strip modeled after crisp monochrome capsule tabs:
+ * - Selected: Deep Ink Black capsule with crisp white label & muted silver inline count.
+ * - Unselected: Soft clean white capsule with black label & muted gray inline count.
  */
 @Composable
-private fun SparksWatchingTelemetryBar(
-    activeSparksCount: Int,
-    totalRunsToday: Int,
-    onClick: () -> Unit,
+private fun SparkCategoryMenuBar(
+    sparks: List<SparkRoutineItem>,
+    selectedCategory: SparkCategory,
+    onCategorySelected: (SparkCategory) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        color = Color.White,
-        shadowElevation = 4.dp,
-        border = BorderStroke(1.dp, Color(0xFFE2E6EC)),
-        modifier = modifier.fillMaxWidth()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // High-contrast Black + Electric Lime Active Status Badge
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(IfxBlack)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(if (activeSparksCount > 0) IfxLime else Color(0xFF9CA3AF))
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "$activeSparksCount WATCHING",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 11.5.sp,
-                        letterSpacing = 0.4.sp,
-                        color = if (activeSparksCount > 0) IfxLime else Color.White
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Text(
-                    text = if (activeSparksCount == 1) "Spark active" else "Sparks active",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.5.sp,
-                    color = IfxBlack
-                )
+        SparkCategory.entries.forEach { category ->
+            val isSelected = category == selectedCategory
+            val categoryCount = remember(sparks, category) {
+                filterSparksByCategory(sparks, category).size
             }
 
-            // Right Segment: Runs Today Pill
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFF4F6F8))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            val pillBg by animateColorAsState(
+                targetValue = if (isSelected) Color(0xFF111317) else Color(0xFFF8F9FA),
+                animationSpec = tween(220),
+                label = "catPillBg"
+            )
+            val labelColor by animateColorAsState(
+                targetValue = if (isSelected) Color.White else IfxBlack,
+                animationSpec = tween(220),
+                label = "catPillLabel"
+            )
+            val countColor by animateColorAsState(
+                targetValue = if (isSelected) Color(0xFFA0A5AE) else Color(0xFF7B818C),
+                animationSpec = tween(220),
+                label = "catPillCount"
+            )
+
+            Surface(
+                onClick = { onCategorySelected(category) },
+                shape = CircleShape,
+                color = pillBg,
+                shadowElevation = if (isSelected) 2.dp else 0.dp,
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (isSelected) Color(0xFF111317) else Color(0xFFECEEF2)
+                ),
+                modifier = Modifier.height(44.dp)
             ) {
-                Text(
-                    text = "$totalRunsToday",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 13.5.sp,
-                    color = IfxBlack
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "runs today",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.5.sp,
-                    color = Color(0xFF686D76)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = category.label,
+                        fontFamily = Inter,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        fontSize = 14.5.sp,
+                        letterSpacing = (-0.2).sp,
+                        color = labelColor
+                    )
+                    Text(
+                        text = "$categoryCount",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                        color = countColor
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Dynamic Profile Avatar Button:
- * - Renders user's custom photo if `photoUri` or `studioAvatarIndex` is set.
- * - Falls back to the signature `IfxBlack` circle with `IfxLime` initials placeholder ("AM")
- *   when no profile photo is set.
+ * Refined Profile Avatar Button:
+ * - Displays the user's real photo cleanly cropped with a crisp hairline ring.
+ * - Falls back to an architectural typographic monogram in 4 tasteful IFX tones (zero cartoon silhouettes).
  */
 @Composable
 private fun ProfileAvatarButton(
@@ -1426,46 +1473,53 @@ private fun ProfileAvatarButton(
         }
     }
 
+    val (toneBg, toneFg, toneRing) = when (studioAvatarIndex) {
+        1 -> Triple(IfxLime, IfxBlack, IfxBlack.copy(alpha = 0.18f))
+        2 -> Triple(Color(0xFFEAE6DC), IfxBlack, IfxBlack.copy(alpha = 0.14f))
+        3 -> Triple(Color(0xFFDCE4EE), IfxBlack, IfxBlack.copy(alpha = 0.14f))
+        else -> Triple(IfxBlack, Color.White, Color.White.copy(alpha = 0.18f))
+    }
+
     Surface(
         onClick = onClick,
         shape = CircleShape,
-        color = IfxBlack,
-        shadowElevation = 6.dp,
+        color = if (loadedBitmap != null) Color.White else toneBg,
+        shadowElevation = 2.dp,
         border = BorderStroke(
-            width = if (loadedBitmap != null || studioAvatarIndex > 0) 2.dp else 0.dp,
-            color = IfxBlack
+            width = 1.2.dp,
+            color = if (loadedBitmap != null) IfxBlack.copy(alpha = 0.14f) else IfxBlack.copy(alpha = 0.18f)
         ),
-        modifier = modifier.size(46.dp)
+        modifier = modifier.size(44.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            when {
-                loadedBitmap != null -> {
-                    Image(
-                        bitmap = loadedBitmap!!,
-                        contentDescription = "User profile photo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
-                studioAvatarIndex > 0 -> {
-                    StudioAvatarIllustration(
-                        presetIndex = studioAvatarIndex,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                else -> {
+            if (loadedBitmap != null) {
+                Image(
+                    bitmap = loadedBitmap!!,
+                    contentDescription = "Profile photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(3.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, toneRing, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
                         text = initialsPlaceholder.take(2).uppercase(),
                         fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.5.sp,
-                        letterSpacing = (-0.3).sp,
-                        color = IfxLime
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        letterSpacing = 0.4.sp,
+                        color = toneFg
                     )
                 }
             }
@@ -1473,39 +1527,9 @@ private fun ProfileAvatarButton(
     }
 }
 
-@Composable
-private fun StudioAvatarIllustration(
-    presetIndex: Int,
-    modifier: Modifier = Modifier
-) {
-    val bgColor = when (presetIndex) {
-        1 -> IfxLime
-        2 -> Color(0xFFDBEAFE)
-        else -> Color(0xFFFDE68A)
-    }
-    val fgColor = IfxBlack
-    Canvas(modifier = modifier.background(bgColor)) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        drawCircle(
-            color = fgColor,
-            radius = size.minDimension * 0.19f,
-            center = Offset(cx, cy - size.height * 0.08f)
-        )
-        drawArc(
-            color = fgColor,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(cx - size.width * 0.34f, cy + size.height * 0.14f),
-            size = Size(size.width * 0.68f, size.height * 0.56f)
-        )
-    }
-}
-
 /**
- * Top-Right 3D Notification Bell Button using the clean `ic_notification_bell` outline vector
- * and displaying an Electric Lime unread badge when unread notifications exist.
+ * Refined Top-Right Notification Button:
+ * Clean architectural circle, crisp outline vector bell, and minimal knockout unread indicator dot.
  */
 @Composable
 private fun NotificationBellButton(
@@ -1517,136 +1541,30 @@ private fun NotificationBellButton(
         onClick = onClick,
         shape = CircleShape,
         color = Color.White,
-        shadowElevation = 5.dp,
+        shadowElevation = 2.dp,
         border = BorderStroke(1.dp, Color(0xFFE2E6EC)),
-        modifier = modifier.size(46.dp)
+        modifier = modifier.size(44.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_notification_bell),
-                contentDescription = "Notifications",
-                modifier = Modifier.size(21.dp)
+            SparkGlyphVector(
+                iconKind = SparkIconKind.BELL_ALERT,
+                tint = IfxBlack,
+                modifier = Modifier.size(20.dp)
             )
 
             if (unreadCount > 0) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 9.dp)
-                        .size(11.dp)
+                        .padding(top = 9.dp, end = 9.dp)
+                        .size(9.dp)
                         .clip(CircleShape)
-                        .background(IfxLime)
-                        .border(1.5.dp, IfxBlack, CircleShape)
+                        .background(IfxBlack)
+                        .border(1.5.dp, Color.White, CircleShape)
                 )
-            }
-        }
-    }
-}
-
-/**
- * 3D Black Pill Routine Command Bar ("Say or type a routine to automate...")
- * with the official `ic_gemini_color` SVG drawable on the left and Electric Lime arrow button on the right.
- */
-@Composable
-private fun RoutinePromptBar(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onSubmit: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(36.dp),
-        color = IfxBlack,
-        shadowElevation = 10.dp,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(68.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 20.dp, end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_gemini_color),
-                contentDescription = "Gemini",
-                modifier = Modifier.size(24.dp)
-            )
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = "Say or type a routine to\nautomate...",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                        color = Color(0xFFB0B5BC)
-                    )
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    textStyle = TextStyle(
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                        color = Color.White
-                    ),
-                    cursorBrush = SolidColor(IfxLime),
-                    maxLines = 2,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { onSubmit() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Surface(
-                onClick = onSubmit,
-                shape = CircleShape,
-                color = IfxLime,
-                shadowElevation = 4.dp,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.size(20.dp)) {
-                        val stroke = 2.4.dp.toPx()
-                        val w = size.width
-                        val h = size.height
-                        drawLine(
-                            color = IfxBlack,
-                            start = Offset(w * 0.15f, h * 0.5f),
-                            end = Offset(w * 0.82f, h * 0.5f),
-                            strokeWidth = stroke,
-                            cap = StrokeCap.Round
-                        )
-                        val arrowPath = Path().apply {
-                            moveTo(w * 0.52f, h * 0.22f)
-                            lineTo(w * 0.85f, h * 0.5f)
-                            lineTo(w * 0.52f, h * 0.78f)
-                        }
-                        drawPath(
-                            path = arrowPath,
-                            color = IfxBlack,
-                            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                        )
-                    }
-                }
             }
         }
     }
@@ -1826,143 +1744,133 @@ private fun EmptySparkSchematicIllustration(modifier: Modifier = Modifier) {
  */
 @Composable
 private fun HomeSpecializedSparksSection(
+    categoryTitle: String,
+    categoryRecommendation: String,
     sparks: List<SparkRoutineItem>,
     selectedSparkId: String?,
-    showAllSparks: Boolean,
-    showGeminiSuggestion: Boolean,
     onSparkClick: (SparkRoutineItem) -> Unit,
     onSparkToggle: (SparkRoutineItem, Boolean) -> Unit,
-    onSeeAllClick: () -> Unit,
-    onAddGeminiSuggestion: () -> Unit,
+    onCreateCustomSparkClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val displayedSparks = if (showAllSparks || sparks.size <= 4) sparks else sparks.take(4)
-
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text(
-                    text = "Your Sparks",
+                    text = categoryTitle,
                     fontFamily = Inter,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 22.sp,
-                    letterSpacing = (-0.4).sp,
+                    letterSpacing = (-0.5).sp,
                     color = IfxBlack
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+
+                // Clean, crisp monochrome capsule count matching the category tabs
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(IfxLime)
-                        .border(1.dp, IfxBlack.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
+                        .clip(CircleShape)
+                        .background(Color(0xFF111317))
                         .padding(horizontal = 11.dp, vertical = 3.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "${sparks.size}",
                         fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.5.sp,
-                        color = IfxBlack
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color.White
                     )
                 }
             }
 
-            if (sparks.size > 4) {
-                Text(
-                    text = if (showAllSparks) "Show less" else "See all (${sparks.size})",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.5.sp,
-                    color = Color(0xFF686D76),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onSeeAllClick)
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = categoryRecommendation,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Normal,
+                fontSize = 13.sp,
+                color = Color(0xFF686D76)
+            )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        Column(
-            verticalArrangement = Arrangement.spacedBy(11.dp)
-        ) {
-            displayedSparks.forEach { spark ->
-                val isSelected = spark.id == selectedSparkId
-                Spark3DCard(
-                    spark = spark,
-                    isSelected = isSelected,
-                    onClick = { onSparkClick(spark) },
-                    onToggle = { enabled -> onSparkToggle(spark, enabled) }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = showGeminiSuggestion,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp, start = 4.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+        if (sparks.isEmpty()) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                border = BorderStroke(1.2.dp, Color(0xFFE4E7EC)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_gemini_color),
-                    contentDescription = "Gemini",
-                    modifier = Modifier.size(21.dp)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                val suggestionText = buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = IfxBlack)) {
-                        append("Gemini suggests ")
-                    }
-                    withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = Color(0xFF686D76))) {
-                        append("saving deadline emails\nas notes")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 26.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "No custom Sparks yet",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 17.sp,
+                        color = IfxBlack
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Build your own automation flow and edit every node freely.",
+                        fontFamily = Inter,
+                        fontSize = 13.5.sp,
+                        lineHeight = 19.sp,
+                        color = Color(0xFF686D76),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(
+                        onClick = onCreateCustomSparkClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = IfxBlack,
+                            contentColor = IfxLime
+                        ),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = "+ Create Spark",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.5.sp
+                        )
                     }
                 }
-
-                Text(
-                    text = suggestionText,
-                    fontFamily = Inter,
-                    fontSize = 14.sp,
-                    lineHeight = 19.sp,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = "Add",
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.5.sp,
-                    color = IfxBlack,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onAddGeminiSuggestion)
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
-                )
+            }
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                sparks.forEach { spark ->
+                    val isSelected = spark.id == selectedSparkId
+                    Spark3DCard(
+                        spark = spark,
+                        isSelected = isSelected,
+                        onClick = { onSparkClick(spark) },
+                        onToggle = { enabled -> onSparkToggle(spark, enabled) }
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Individual 3D Elevated Card for a Spark routine:
- * - Uses clean IFX semantic icon tiles (`ic_tile_mail`, `ic_tile_bell`, `ic_tile_notebook`, `ic_tile_cal`).
- * - Clicking any Spark card transitions its surface to **Electric Lime (`#C6FF3F`)** with a crisp
- *   `2.dp` `IfxBlack` border and elevated 3D shadow.
+ * Editorial Home Spark Card inspired by clean stacked-icon workflow cards:
+ * - Soft, cohesive topic background surface (`spark.topic.heroBg`) with generous `28.dp` corners.
+ * - Left vertical rail of circular white service icon badges (trigger + action icons).
+ * - Right editorial column: bold title, concise 2-3 line summary, circular black live counter
+ *   (`Used 1428` / `Runs 1`), and tactile `Start ▷` / `Running` pill button.
  */
 @Composable
 private fun Spark3DCard(
@@ -1972,36 +1880,47 @@ private fun Spark3DCard(
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardContainerColor by animateColorAsState(
-        targetValue = if (isSelected) IfxLime else Color.White,
-        animationSpec = tween(durationMillis = 220),
-        label = "sparkCardBgColor"
-    )
+    val topic = spark.topic
+    val isDarkCard = topic == SparkTopic.NIGHT
+
     val cardBorderColor by animateColorAsState(
-        targetValue = if (isSelected) IfxBlack else Color(0xFFE4E7EC),
-        animationSpec = tween(durationMillis = 220),
+        targetValue = when {
+            isSelected && isDarkCard -> IfxLime
+            isSelected -> IfxBlack
+            isDarkCard -> Color.White.copy(alpha = 0.16f)
+            else -> IfxBlack.copy(alpha = 0.12f)
+        },
+        animationSpec = tween(durationMillis = 200),
         label = "sparkCardBorderColor"
     )
     val cardElevation by animateDpAsState(
-        targetValue = if (isSelected) 12.dp else 6.dp,
-        animationSpec = tween(durationMillis = 220),
+        targetValue = if (isSelected) 10.dp else 5.dp,
+        animationSpec = tween(durationMillis = 200),
         label = "sparkCardElevation"
     )
 
-    val subtitleColor = if (isSelected) {
-        IfxBlack.copy(alpha = 0.78f)
+    val stackIcons = remember(spark.primaryIcon, spark.actionIcon, spark.actions, spark.actionTemplates) {
+        val list = mutableListOf(spark.primaryIcon, spark.actionIcon)
+        if (spark.resolvedActions().size > 1) {
+            list.add(SparkIconKind.NOTEBOOK_PAGE)
+        }
+        list
+    }
+
+    val counterLabel = if (spark.isOfficial) "Used" else "Runs"
+    val counterNumber = if (spark.isOfficial) {
+        spark.activeUsersCount.toString()
     } else {
-        Color(0xFF686D76)
+        spark.totalRunsCount.toString()
     }
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(24.dp),
-        color = cardContainerColor,
+        shape = RoundedCornerShape(28.dp),
+        color = topic.heroBg,
         shadowElevation = cardElevation,
-        tonalElevation = if (isSelected) 4.dp else 1.dp,
         border = BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
+            width = if (isSelected) 1.8.dp else 1.2.dp,
             color = cardBorderColor
         ),
         modifier = modifier.fillMaxWidth()
@@ -2009,22 +1928,22 @@ private fun Spark3DCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            // Distinct Topic-Specific IFX Vector Glyph Tile
-            SparkGlyphTile(
-                iconKind = spark.primaryIcon,
-                size = 50.dp,
-                cornerRadius = 16.dp,
-                containerColor = spark.topic.tileBg,
-                iconTint = spark.topic.tileIcon,
-                borderColor = IfxBlack.copy(alpha = 0.16f),
-                borderWidth = 1.2.dp
-            )
+            // Left Column: Vertical stack of crisp white circular icon badges
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                stackIcons.forEach { glyph ->
+                    SparkCircularIconBadge(iconKind = glyph)
+                }
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
+            // Right Column: Headline, Description, and Bottom ("Used" circle + "Start ▷" pill)
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -2032,107 +1951,363 @@ private fun Spark3DCard(
                     text = spark.title,
                     fontFamily = Inter,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 17.sp,
-                    letterSpacing = (-0.3).sp,
-                    color = IfxBlack,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                    text = spark.subtitle,
-                    fontFamily = Inter,
-                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                    fontSize = 13.5.sp,
-                    lineHeight = 18.sp,
-                    color = subtitleColor,
+                    fontSize = 20.sp,
+                    lineHeight = 24.sp,
+                    letterSpacing = (-0.5).sp,
+                    color = topic.heroContent,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(5.dp))
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 Text(
-                    text = if (spark.isOfficial) "by IFX" else "by You",
+                    text = spark.about,
                     fontFamily = Inter,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.5.sp,
-                    color = if (isSelected) IfxBlack.copy(alpha = 0.7f) else Color(0xFF8C929D)
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = topic.heroSubtle,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                val counterScale = remember(spark.id) { Animatable(1f) }
+                LaunchedEffect(counterNumber) {
+                    counterScale.snapTo(1.16f)
+                    counterScale.animateTo(
+                        targetValue = 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Circular Dark Counter Badge ("Used\n1428") with tactile spring pop on increment
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .graphicsLayer(
+                                scaleX = counterScale.value,
+                                scaleY = counterScale.value
+                            )
+                            .clip(CircleShape)
+                            .background(if (isDarkCard) Color(0xFF0E1015) else IfxBlack)
+                            .border(
+                                width = 1.dp,
+                                color = if (isDarkCard) Color.White.copy(alpha = 0.22f) else Color.Transparent,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = counterLabel,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 9.5.sp,
+                                lineHeight = 11.sp,
+                                color = Color.White.copy(alpha = 0.72f)
+                            )
+                            Text(
+                                text = counterNumber,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    // Tactile "Start ▷" -> IFX Signal-Flow Ignition -> Live "Active" Pill Button
+                    SparkCardActionPill(
+                        enabled = spark.enabled,
+                        isDarkCard = isDarkCard,
+                        onToggle = { targetEnabled -> onToggle(targetEnabled) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            IfxSparkToggleSwitch(
-                checked = spark.enabled,
-                isCardSelected = isSelected,
-                onCheckedChange = onToggle
-            )
         }
     }
 }
 
 @Composable
-private fun IfxSparkToggleSwitch(
-    checked: Boolean,
-    isCardSelected: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+private fun SparkCircularIconBadge(
+    iconKind: SparkIconKind,
     modifier: Modifier = Modifier
 ) {
-    val trackColor by animateColorAsState(
+    Surface(
+        shape = CircleShape,
+        color = Color.White,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, IfxBlack.copy(alpha = 0.08f)),
+        modifier = modifier.size(46.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            SparkGlyphVector(
+                iconKind = iconKind,
+                tint = IfxBlack,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Signature IFX Automation Ignition Pill:
+ * - Tapping "Start ▷" fires a 540ms IFX node-flow signal sweep (`● ━━ ◇ ━━ ✓`) across the pill,
+ *   lighting each automation node sequentially as the signal travels left-to-right before locking
+ *   into the live pulsing "Active" state.
+ */
+@Composable
+private fun SparkCardActionPill(
+    enabled: Boolean,
+    isDarkCard: Boolean,
+    onToggle: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var isIgniting by remember { mutableStateOf(false) }
+    val ignitionProgress = remember { Animatable(0f) }
+
+    val pillScale by animateFloatAsState(
+        targetValue = if (isIgniting) 0.97f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "pillTapScale"
+    )
+
+    val pillBg by animateColorAsState(
         targetValue = when {
-            checked && isCardSelected -> Color.White
-            checked -> IfxLime
+            isIgniting -> IfxBlack
+            enabled && isDarkCard -> IfxLime
+            enabled -> IfxBlack
             else -> Color.White
         },
-        animationSpec = tween(180),
-        label = "switchTrackColor"
+        animationSpec = tween(220),
+        label = "sparkActionPillBg"
     )
-    val borderColor by animateColorAsState(
+    val pillContent by animateColorAsState(
         targetValue = when {
-            checked && isCardSelected -> IfxBlack
-            checked -> IfxLime
-            else -> Color(0xFF9CA3AF)
+            isIgniting -> IfxLime
+            enabled && isDarkCard -> IfxBlack
+            enabled -> Color.White
+            else -> IfxBlack
         },
-        animationSpec = tween(180),
-        label = "switchBorderColor"
+        animationSpec = tween(220),
+        label = "sparkActionPillContent"
+    )
+
+    Surface(
+        onClick = {
+            if (isIgniting) return@Surface
+            if (!enabled) {
+                isIgniting = true
+                coroutineScope.launch {
+                    ignitionProgress.snapTo(0f)
+                    ignitionProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 1050, easing = FastOutSlowInEasing)
+                    )
+                    isIgniting = false
+                    onToggle(true)
+                }
+            } else {
+                onToggle(false)
+            }
+        },
+        shape = CircleShape,
+        color = pillBg,
+        shadowElevation = if (enabled || isIgniting) 3.dp else 1.dp,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (enabled || isIgniting) Color.Transparent else IfxBlack.copy(alpha = 0.08f)
+        ),
+        modifier = modifier
+            .height(48.dp)
+            .graphicsLayer(scaleX = pillScale, scaleY = pillScale)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isIgniting) {
+                // IFX Topic Animation: Live 3-node automation circuit (If ● ━━ ◇ ━━ ✓ Then do)
+                val p = ignitionProgress.value
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+                    val cy = h / 2f
+
+                    // Subtle electric lime sweep fill behind the nodes
+                    drawRect(
+                        color = IfxLime.copy(alpha = 0.16f),
+                        topLeft = Offset.Zero,
+                        size = Size(w * p, h)
+                    )
+
+                    val x1 = w * 0.24f
+                    val x2 = w * 0.50f
+                    val x3 = w * 0.76f
+                    val trackStroke = 2.4.dp.toPx()
+
+                    // Dim rail between nodes
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.22f),
+                        start = Offset(x1, cy),
+                        end = Offset(x3, cy),
+                        strokeWidth = trackStroke,
+                        cap = StrokeCap.Round
+                    )
+
+                    // Lit Electric Lime signal traveling from Node 1 -> Node 3
+                    val signalEnd = x1 + (x3 - x1) * ((p - 0.08f) / 0.80f).coerceIn(0f, 1f)
+                    drawLine(
+                        color = IfxLime,
+                        start = Offset(x1, cy),
+                        end = Offset(signalEnd, cy),
+                        strokeWidth = trackStroke,
+                        cap = StrokeCap.Round
+                    )
+
+                    // Node 1: Trigger Circle (lights up immediately)
+                    val n1Lit = p >= 0.05f
+                    drawCircle(
+                        color = if (n1Lit) IfxLime else Color(0xFF3A3E48),
+                        radius = 5.5.dp.toPx(),
+                        center = Offset(x1, cy)
+                    )
+
+                    // Node 2: Condition Diamond (lights up at midpoint)
+                    val n2Lit = p >= 0.45f
+                    val dR = 6.dp.toPx()
+                    val diamond = Path().apply {
+                        moveTo(x2, cy - dR)
+                        lineTo(x2 + dR, cy)
+                        lineTo(x2, cy + dR)
+                        lineTo(x2 - dR, cy)
+                        close()
+                    }
+                    drawPath(
+                        path = diamond,
+                        color = if (n2Lit) IfxLime else Color(0xFF1F2229)
+                    )
+                    drawPath(
+                        path = diamond,
+                        color = if (n2Lit) IfxLime else Color.White.copy(alpha = 0.4f),
+                        style = Stroke(width = 1.6.dp.toPx(), join = StrokeJoin.Round)
+                    )
+
+                    // Node 3: Action Check Ring (ignites at end)
+                    val n3Lit = p >= 0.82f
+                    drawCircle(
+                        color = if (n3Lit) IfxLime else Color(0xFF2B2F38),
+                        radius = 7.dp.toPx(),
+                        center = Offset(x3, cy)
+                    )
+                    if (n3Lit) {
+                        val check = Path().apply {
+                            moveTo(x3 - 3.2.dp.toPx(), cy + 0.2.dp.toPx())
+                            lineTo(x3 - 0.6.dp.toPx(), cy + 2.8.dp.toPx())
+                            lineTo(x3 + 3.6.dp.toPx(), cy - 2.4.dp.toPx())
+                        }
+                        drawPath(
+                            path = check,
+                            color = IfxBlack,
+                            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = if (enabled) "Active" else "Start",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = pillContent
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (enabled) {
+                        ActiveLivePulseDot(dotColor = if (isDarkCard) IfxBlack else IfxLime)
+                    } else {
+                        // Crisp outlined play triangle matching "Start ▷"
+                        Canvas(modifier = Modifier.size(14.dp)) {
+                            val path = Path().apply {
+                                moveTo(size.width * 0.22f, size.height * 0.14f)
+                                lineTo(size.width * 0.86f, size.height * 0.50f)
+                                lineTo(size.width * 0.22f, size.height * 0.86f)
+                                close()
+                            }
+                            drawPath(
+                                path = path,
+                                color = pillContent,
+                                style = Stroke(
+                                    width = 1.9.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveLivePulseDot(
+    dotColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "activeLivePulse")
+    val radarPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "activeRadarPhase"
     )
 
     Box(
-        modifier = modifier
-            .width(56.dp)
-            .height(32.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(trackColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { onCheckedChange(!checked) }
-            )
-            .padding(horizontal = 4.dp),
-        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+        modifier = modifier.size(18.dp),
+        contentAlignment = Alignment.Center
     ) {
-        if (checked) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(IfxBlack),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_check),
-                    contentDescription = "Enabled",
-                    tint = IfxLime,
-                    modifier = Modifier.size(13.dp)
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .padding(start = 2.dp)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF757A82))
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val c = Offset(size.width / 2f, size.height / 2f)
+            drawCircle(
+                color = dotColor.copy(alpha = (1f - radarPhase) * 0.55f),
+                radius = (4.dp.toPx() + radarPhase * 5.dp.toPx()),
+                center = c,
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+            drawCircle(
+                color = dotColor,
+                radius = 4.2.dp.toPx(),
+                center = c
             )
         }
     }
@@ -2389,9 +2564,10 @@ private fun BottomNavIcon(
 }
 
 /**
- * Interactive Notification Center Sheet:
- * Supports filtering between "Show all" and "Unread", marking individual notifications
- * as read/unread by clicking them, and "Mark all read".
+ * Clean Editorial Notification Inbox Sheet:
+ * - Minimal header + subtle "Mark all read" action
+ * - Clean segmented filter track (`All` | `Unread`)
+ * - Hairline-separated notification rows with bespoke vector icons and subtle unread dot (zero status-pill clutter)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2420,256 +2596,240 @@ private fun NotificationsCenterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 26.dp)
                 .navigationBarsPadding()
         ) {
+            // Minimal Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Notifications",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 21.sp,
-                        color = IfxBlack
-                    )
-                    if (unreadCount > 0) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(IfxLime)
-                                .border(1.dp, IfxBlack.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 9.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "$unreadCount new",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 12.sp,
-                                color = IfxBlack
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = "Inbox",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 23.sp,
+                    letterSpacing = (-0.5).sp,
+                    color = IfxBlack
+                )
 
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFF3F4F6))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_close),
-                        contentDescription = "Close",
-                        tint = IfxBlack,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    if (unreadCount > 0) {
+                        Text(
+                            text = "Mark all read",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = Color(0xFF525866),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onMarkAllRead)
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF3F4F6))
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_close),
+                            contentDescription = "Close",
+                            tint = IfxBlack,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Filter Pills ("Show all" / "Unread") + "Mark all read" action
+            // Clean Segmented Track (`All` | `Unread`)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Color(0xFFF3F4F6))
+                    .padding(3.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    false to "All (${notifications.size})",
+                    true to "Unread ($unreadCount)"
+                ).forEach { (unreadTab, label) ->
+                    val active = showUnreadOnly == unreadTab
                     Surface(
-                        onClick = { showUnreadOnly = false },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (!showUnreadOnly) IfxBlack else Color(0xFFF3F4F6)
+                        onClick = { showUnreadOnly = unreadTab },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (active) Color.White else Color.Transparent,
+                        shadowElevation = if (active) 2.dp else 0.dp,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            text = "Show all (${notifications.size})",
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = if (!showUnreadOnly) IfxLime else Color(0xFF4B5563),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
+                        Box(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontFamily = Inter,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp,
+                                color = if (active) IfxBlack else Color(0xFF686D76)
+                            )
+                        }
                     }
-
-                    Surface(
-                        onClick = { showUnreadOnly = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (showUnreadOnly) IfxBlack else Color(0xFFF3F4F6)
-                    ) {
-                        Text(
-                            text = "Unread ($unreadCount)",
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = if (showUnreadOnly) IfxLime else Color(0xFF4B5563),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
-                    }
-                }
-
-                if (unreadCount > 0) {
-                    Text(
-                        text = "Mark all read",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = IfxBlack,
-                        textDecoration = TextDecoration.Underline,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable(onClick = onMarkAllRead)
-                            .padding(horizontal = 4.dp, vertical = 4.dp)
-                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             if (displayedNotifications.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 28.dp),
+                        .padding(vertical = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (showUnreadOnly) "All caught up! No unread notifications." else "No notifications yet.",
+                        text = if (showUnreadOnly) "You're all caught up" else "No activity yet",
                         fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 15.5.sp,
                         color = IfxBlack
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (showUnreadOnly) "Unread Spark runs will show up here." else "Recent runs from your active Sparks appear here.",
+                        fontFamily = Inter,
+                        fontSize = 13.sp,
+                        color = Color(0xFF686D76),
+                        textAlign = TextAlign.Center
+                    )
                     if (notifications.isEmpty()) {
+                        Spacer(modifier = Modifier.height(14.dp))
                         Surface(
                             onClick = onRestoreSampleNotifications,
-                            shape = RoundedCornerShape(12.dp),
-                            color = IfxLime,
-                            border = BorderStroke(1.dp, IfxBlack)
+                            shape = CircleShape,
+                            color = IfxBlack
                         ) {
                             Text(
-                                text = "Load recent Spark runs",
+                                text = "Restore sample activity",
                                 fontFamily = Inter,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = IfxBlack,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                fontSize = 12.5.sp,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
                     }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    displayedNotifications.forEach { item ->
-                        Surface(
-                            onClick = { onToggleRead(item.id) },
-                            shape = RoundedCornerShape(18.dp),
-                            color = if (item.isRead) Color(0xFFF9FAFB) else Color.White,
-                            shadowElevation = if (item.isRead) 0.dp else 4.dp,
-                            border = BorderStroke(
-                                width = if (item.isRead) 1.dp else 1.5.dp,
-                                color = if (item.isRead) Color(0xFFE5E7EB) else IfxBlack
-                            ),
-                            modifier = Modifier.fillMaxWidth()
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    displayedNotifications.forEachIndexed { index, item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { onToggleRead(item.id) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Row(
+                            // Subtle unread dot in left gutter
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.Top
+                                    .padding(top = 15.dp)
+                                    .width(12.dp),
+                                contentAlignment = Alignment.CenterStart
                             ) {
-                                Image(
-                                    painter = painterResource(id = item.iconRes),
-                                    contentDescription = item.sparkTitle,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                )
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = item.sparkTitle,
-                                            fontFamily = Inter,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.5.sp,
-                                            color = IfxBlack
-                                        )
-                                        Text(
-                                            text = item.timestamp,
-                                            fontFamily = Inter,
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF686D76)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    Text(
-                                        text = item.message,
-                                        fontFamily = Inter,
-                                        fontWeight = if (item.isRead) FontWeight.Normal else FontWeight.Medium,
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        color = if (item.isRead) Color(0xFF686D76) else IfxBlack
+                                if (!item.isRead) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(IfxBlack)
                                     )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(if (item.isRead) Color(0xFFE5E7EB) else IfxLime)
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text(
-                                                text = if (item.isRead) "Read · Tap to mark unread" else "Unread · Tap to mark read",
-                                                fontFamily = Inter,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                color = IfxBlack
-                                            )
-                                        }
-                                    }
                                 }
                             }
+
+                            SparkGlyphTile(
+                                iconKind = item.iconKind,
+                                size = 38.dp,
+                                cornerRadius = 11.dp,
+                                containerColor = if (item.isRead) Color(0xFFF3F4F6) else IfxBlack,
+                                iconTint = if (item.isRead) Color(0xFF686D76) else IfxLime,
+                                borderColor = Color.Transparent,
+                                borderWidth = 0.dp
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = item.sparkTitle,
+                                        fontFamily = Inter,
+                                        fontWeight = if (item.isRead) FontWeight.SemiBold else FontWeight.Bold,
+                                        fontSize = 14.5.sp,
+                                        color = if (item.isRead) Color(0xFF525866) else IfxBlack
+                                    )
+                                    Text(
+                                        text = item.timestamp,
+                                        fontFamily = Inter,
+                                        fontWeight = FontWeight.Normal,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF8C929D)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(3.dp))
+
+                                Text(
+                                    text = item.message,
+                                    fontFamily = Inter,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = if (item.isRead) Color(0xFF8C929D) else Color(0xFF374151)
+                                )
+                            }
+                        }
+
+                        if (index < displayedNotifications.lastIndex) {
+                            HorizontalDivider(
+                                color = Color(0xFFF1F3F5),
+                                modifier = Modifier.padding(start = 62.dp)
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
                     Text(
-                        text = "Clear all notifications",
+                        text = "Clear all",
                         fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         fontSize = 12.5.sp,
-                        color = Color(0xFF686D76),
+                        color = Color(0xFF8C929D),
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .clickable(onClick = onClearAll)
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -2677,6 +2837,11 @@ private fun NotificationsCenterSheet(
     }
 }
 
+/**
+ * Refined Account & Profile Sheet:
+ * Clean editorial identity header with photo picker overlay, tasteful monogram tone swatches,
+ * compact grouped settings surface, and crisp account actions.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileAndPreferencesSheet(
@@ -2710,26 +2875,29 @@ private fun ProfileAndPreferencesSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 28.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 26.dp)
                 .navigationBarsPadding()
         ) {
+            // Top bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Profile & Preferences",
+                    text = "Account",
                     fontFamily = Inter,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 21.sp,
+                    fontSize = 23.sp,
+                    letterSpacing = (-0.5).sp,
                     color = IfxBlack
                 )
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFF3F4F6))
                 ) {
@@ -2737,241 +2905,220 @@ private fun ProfileAndPreferencesSheet(
                         painter = painterResource(id = R.drawable.ic_close),
                         contentDescription = "Close",
                         tint = IfxBlack,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFF6F7F2))
-                    .border(1.dp, Color(0xFFE4E7EC), RoundedCornerShape(20.dp))
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Centered Editorial Identity Block
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                ProfileAvatarButton(
-                    photoUri = photoUri,
-                    studioAvatarIndex = studioAvatarIndex,
-                    initialsPlaceholder = initials,
-                    onClick = onPickFromGallery,
-                    modifier = Modifier.size(58.dp)
-                )
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = editedName.ifBlank { "Alex" },
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 17.sp,
-                        color = IfxBlack
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    ProfileAvatarButton(
+                        photoUri = photoUri,
+                        studioAvatarIndex = studioAvatarIndex,
+                        initialsPlaceholder = initials,
+                        onClick = onPickFromGallery,
+                        modifier = Modifier.size(72.dp)
                     )
-                    Text(
-                        text = "$email · $provider",
-                        fontFamily = Inter,
-                        fontSize = 13.sp,
-                        color = Color(0xFF686D76)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(
-                            onClick = onPickFromGallery,
-                            shape = RoundedCornerShape(10.dp),
-                            color = IfxBlack
-                        ) {
+
+                    // Small crisp edit-photo badge
+                    Surface(
+                        onClick = onPickFromGallery,
+                        shape = CircleShape,
+                        color = IfxBlack,
+                        border = BorderStroke(2.dp, Color.White),
+                        modifier = Modifier.size(26.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Text(
-                                text = "Upload photo",
+                                text = "+",
                                 fontFamily = Inter,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = IfxLime,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                color = IfxLime
                             )
                         }
-                        if (!photoUri.isNullOrBlank() || studioAvatarIndex > 0) {
-                            Surface(
-                                onClick = onUseInitialsPlaceholder,
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White,
-                                border = BorderStroke(1.dp, Color(0xFFD1D5DB))
-                            ) {
-                                Text(
-                                    text = "Use placeholder ($initials)",
-                                    fontFamily = Inter,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp,
-                                    color = IfxBlack,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = editedName.ifBlank { "Alex" },
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 19.sp,
+                    letterSpacing = (-0.3).sp,
+                    color = IfxBlack
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = "$email  ·  $provider",
+                    fontFamily = Inter,
+                    fontSize = 13.sp,
+                    color = Color(0xFF686D76)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Clean Monogram Swatches (Ink, Lime, Sand, Slate) + Photo actions
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val swatches = listOf(
+                        0 to IfxBlack,
+                        1 to IfxLime,
+                        2 to Color(0xFFEAE6DC),
+                        3 to Color(0xFFDCE4EE)
+                    )
+                    swatches.forEach { (idx, color) ->
+                        val selected = photoUri.isNullOrBlank() && studioAvatarIndex == idx
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (selected) 2.2.dp else 1.dp,
+                                    color = if (selected) IfxBlack else Color(0xFFD0D5DD),
+                                    shape = CircleShape
                                 )
+                                .clickable {
+                                    if (idx == 0) onUseInitialsPlaceholder() else onSelectStudioAvatar(idx)
+                                }
+                        )
+                    }
+
+                    if (!photoUri.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Remove photo",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp,
+                            color = Color(0xFF686D76),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onUseInitialsPlaceholder)
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // Grouped Preferences Container
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFFF8F9FA),
+                border = BorderStroke(1.dp, Color(0xFFEAECEF)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editedName,
+                        onValueChange = {
+                            editedName = it
+                            onUpdateDisplayName(it)
+                        },
+                        label = { Text("Display name", fontFamily = Inter, fontSize = 12.5.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(13.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = IfxBlack,
+                            unfocusedBorderColor = Color(0xFFD6DAE0),
+                            focusedLabelColor = IfxBlack,
+                            cursorColor = IfxBlack,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Home layout",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.5.sp,
+                            color = IfxBlack
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFECEEF2))
+                                .padding(2.dp)
+                        ) {
+                            listOf(true to "Empty", false to "Sparks").forEach { (emptyFlag, label) ->
+                                val active = isEmptyState == emptyFlag
+                                Surface(
+                                    onClick = { onToggleEmptyState(emptyFlag) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (active) Color.White else Color.Transparent,
+                                    shadowElevation = if (active) 1.dp else 0.dp
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontFamily = Inter,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 12.sp,
+                                        color = if (active) IfxBlack else Color(0xFF686D76),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = Color(0xFFEAECEF))
 
-            Text(
-                text = "Avatar Style (Photo or Placeholder)",
-                fontFamily = Inter,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
-                color = IfxBlack
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val isPlaceholderSelected = photoUri.isNullOrBlank() && studioAvatarIndex == 0
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(IfxBlack)
-                        .border(
-                            width = if (isPlaceholderSelected) 2.5.dp else 1.dp,
-                            color = if (isPlaceholderSelected) IfxLime else IfxBlack,
-                            shape = CircleShape
-                        )
-                        .clickable { onUseInitialsPlaceholder() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initials,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
-                        color = IfxLime
-                    )
-                }
-
-                listOf(1, 2, 3).forEach { preset ->
-                    val selected = studioAvatarIndex == preset && photoUri.isNullOrBlank()
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .border(
-                                width = if (selected) 2.5.dp else 1.dp,
-                                color = if (selected) IfxBlack else Color(0xFFD1D5DB),
-                                shape = CircleShape
-                            )
-                            .clickable { onSelectStudioAvatar(preset) }
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(onClick = onReplayAppTour)
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StudioAvatarIllustration(
-                            presetIndex = preset,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = editedName,
-                onValueChange = {
-                    editedName = it
-                    onUpdateDisplayName(it)
-                },
-                label = { Text("Greeting Name", fontFamily = Inter, fontSize = 13.sp) },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = IfxBlack,
-                    unfocusedBorderColor = Color(0xFFD1D5DB),
-                    focusedLabelColor = IfxBlack,
-                    cursorColor = IfxBlack
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Home Screen State",
-                fontFamily = Inter,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
-                color = IfxBlack
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
-                    onClick = { onToggleEmptyState(true) },
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isEmptyState) IfxLime else Color.White,
-                    border = BorderStroke(1.5.dp, if (isEmptyState) IfxBlack else Color(0xFFE4E7EC)),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "1. Empty State",
+                            text = "Replay app tour",
                             fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
                             color = IfxBlack
                         )
-                    }
-                }
-                Surface(
-                    onClick = { onToggleEmptyState(false) },
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (!isEmptyState) IfxLime else Color.White,
-                    border = BorderStroke(1.5.dp, if (!isEmptyState) IfxBlack else Color(0xFFE4E7EC)),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "2. Your Sparks",
+                            text = "›",
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = IfxBlack
+                            fontSize = 18.sp,
+                            color = Color(0xFF8C929D)
                         )
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Replay Guided App Tour action
-            Surface(
-                onClick = onReplayAppTour,
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFF6F7F2),
-                border = BorderStroke(1.2.dp, IfxBlack),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "Replay Guided App Tour",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = IfxBlack
-                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
-            HorizontalDivider(color = Color(0xFFF3F4F6))
-            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2983,7 +3130,7 @@ private fun ProfileAndPreferencesSheet(
                         containerColor = IfxBlack,
                         contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = CircleShape,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)
@@ -3002,8 +3149,8 @@ private fun ProfileAndPreferencesSheet(
                         containerColor = Color.White,
                         contentColor = Color(0xFFDC2626)
                     ),
-                    border = BorderStroke(1.5.dp, Color(0xFFFECACA)),
-                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.2.dp, Color(0xFFF3D1D1)),
+                    shape = CircleShape,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)

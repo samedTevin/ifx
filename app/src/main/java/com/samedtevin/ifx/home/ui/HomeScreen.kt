@@ -86,6 +86,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -116,6 +117,7 @@ import com.samedtevin.ifx.ui.theme.IfxLime
 import com.samedtevin.ifx.ui.theme.Inter
 import com.samedtevin.ifx.welcome.SavedAccountInfo
 import java.io.Serializable
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -947,28 +949,52 @@ fun HomeScreen(
                         when (activeTab) {
                             HomeNavTab.HOME -> {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    // 2. Date & Greeting Header
+                                    // 2. Date & Greeting Header with Electric Lime Name Highlight
                                     Text(
                                         text = formattedDate,
                                         fontFamily = Inter,
-                                        fontWeight = FontWeight.Medium,
+                                        fontWeight = FontWeight.SemiBold,
                                         fontSize = 14.5.sp,
-                                        color = Color(0xFF686D76)
+                                        color = Color(0xFF525866)
                                     )
 
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
 
-                                    Text(
-                                        text = "Hi, $customDisplayName",
-                                        fontFamily = Inter,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 34.sp,
-                                        lineHeight = 38.sp,
-                                        letterSpacing = (-1).sp,
-                                        color = IfxBlack
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Hi,",
+                                            fontFamily = Inter,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 36.sp,
+                                            lineHeight = 40.sp,
+                                            letterSpacing = (-1.2).sp,
+                                            color = IfxBlack
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f, fill = false)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(IfxLime)
+                                                .padding(horizontal = 12.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = customDisplayName,
+                                                fontFamily = Inter,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 36.sp,
+                                                lineHeight = 40.sp,
+                                                letterSpacing = (-1.2).sp,
+                                                color = IfxBlack,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(18.dp))
 
                                     // 3. Swappable Category Box Strip (Recommended, Most Popular, Healthy, Productivity, Finance, My Sparks, All)
                                     if (!isEmptyState) {
@@ -977,7 +1003,7 @@ fun HomeScreen(
                                             selectedCategory = selectedCategory,
                                             onCategorySelected = { selectedCategory = it }
                                         )
-                                        Spacer(modifier = Modifier.height(18.dp))
+                                        Spacer(modifier = Modifier.height(20.dp))
                                     }
 
                                     // 4. Crossfade between State 1 (Empty State) and State 2 (Specialized User Sparks State)
@@ -988,6 +1014,7 @@ fun HomeScreen(
                                     ) { empty ->
                                         if (empty) {
                                             HomeEmptyStateSection(
+                                                onHeroCreateClick = { showAiCreatorSheet = true },
                                                 onPresetChipClick = { presetId, presetTitle ->
                                                     activateSpecializedState(preferredSparkId = presetId)
                                                     Toast.makeText(
@@ -1002,8 +1029,16 @@ fun HomeScreen(
                                                 filterSparksByCategory(sparks, selectedCategory)
                                             }
                                             HomeSpecializedSparksSection(
-                                                categoryTitle = selectedCategory.label,
-                                                categoryRecommendation = selectedCategory.recommendation,
+                                                categoryTitle = if (selectedCategory == SparkCategory.RECOMMENDED) {
+                                                    "Picked for your day"
+                                                } else {
+                                                    selectedCategory.label
+                                                },
+                                                categoryRecommendation = if (selectedCategory == SparkCategory.RECOMMENDED) {
+                                                    "Tap a Spark to switch it on or off."
+                                                } else {
+                                                    selectedCategory.recommendation
+                                                },
                                                 sparks = categorySparks,
                                                 selectedSparkId = selectedSparkId,
                                                 onSparkClick = { clickedSpark ->
@@ -1365,9 +1400,9 @@ private fun IfxSquareGridBackground(modifier: Modifier = Modifier) {
 }
 
 /**
- * Minimal Horizontal Scrollable Category Strip modeled after crisp monochrome capsule tabs:
- * - Selected: Deep Ink Black capsule with crisp white label & muted silver inline count.
- * - Unselected: Soft clean white capsule with black label & muted gray inline count.
+ * Horizontal Scrollable Category Strip:
+ * - Selected: Deep Ink Black capsule with crisp white label & circular Electric Lime count badge.
+ * - Unselected: Crisp white capsule with bold black label & circular soft gray count badge.
  */
 @Composable
 private fun SparkCategoryMenuBar(
@@ -1380,7 +1415,7 @@ private fun SparkCategoryMenuBar(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SparkCategory.entries.forEach { category ->
@@ -1390,7 +1425,7 @@ private fun SparkCategoryMenuBar(
             }
 
             val pillBg by animateColorAsState(
-                targetValue = if (isSelected) Color(0xFF111317) else Color(0xFFF8F9FA),
+                targetValue = if (isSelected) IfxBlack else Color.White,
                 animationSpec = tween(220),
                 label = "catPillBg"
             )
@@ -1399,43 +1434,51 @@ private fun SparkCategoryMenuBar(
                 animationSpec = tween(220),
                 label = "catPillLabel"
             )
-            val countColor by animateColorAsState(
-                targetValue = if (isSelected) Color(0xFFA0A5AE) else Color(0xFF7B818C),
+            val badgeBg by animateColorAsState(
+                targetValue = if (isSelected) IfxLime else Color(0xFFF1F3F5),
                 animationSpec = tween(220),
-                label = "catPillCount"
+                label = "catBadgeBg"
             )
 
             Surface(
                 onClick = { onCategorySelected(category) },
                 shape = CircleShape,
                 color = pillBg,
-                shadowElevation = if (isSelected) 2.dp else 0.dp,
+                shadowElevation = if (isSelected) 3.dp else 0.dp,
                 border = BorderStroke(
                     width = 1.dp,
-                    color = if (isSelected) Color(0xFF111317) else Color(0xFFECEEF2)
+                    color = if (isSelected) IfxBlack else Color(0xFFE0E4EA)
                 ),
-                modifier = Modifier.height(44.dp)
+                modifier = Modifier.height(46.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(start = 18.dp, end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
                         text = category.label,
                         fontFamily = Inter,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 14.5.sp,
                         letterSpacing = (-0.2).sp,
                         color = labelColor
                     )
-                    Text(
-                        text = "$categoryCount",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        color = countColor
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(badgeBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "$categoryCount",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.5.sp,
+                            color = IfxBlack
+                        )
+                    }
                 }
             }
         }
@@ -1445,7 +1488,7 @@ private fun SparkCategoryMenuBar(
 /**
  * Refined Profile Avatar Button:
  * - Displays the user's real photo cleanly cropped with a crisp hairline ring.
- * - Falls back to an architectural typographic monogram in 4 tasteful IFX tones (zero cartoon silhouettes).
+ * - Falls back to a bold IFX monogram (default: solid Ink Black with Electric Lime initials).
  */
 @Composable
 private fun ProfileAvatarButton(
@@ -1473,11 +1516,11 @@ private fun ProfileAvatarButton(
         }
     }
 
-    val (toneBg, toneFg, toneRing) = when (studioAvatarIndex) {
-        1 -> Triple(IfxLime, IfxBlack, IfxBlack.copy(alpha = 0.18f))
-        2 -> Triple(Color(0xFFEAE6DC), IfxBlack, IfxBlack.copy(alpha = 0.14f))
-        3 -> Triple(Color(0xFFDCE4EE), IfxBlack, IfxBlack.copy(alpha = 0.14f))
-        else -> Triple(IfxBlack, Color.White, Color.White.copy(alpha = 0.18f))
+    val (toneBg, toneFg) = when (studioAvatarIndex) {
+        1 -> IfxLime to IfxBlack
+        2 -> Color(0xFFEAE6DC) to IfxBlack
+        3 -> Color(0xFFDCE4EE) to IfxBlack
+        else -> IfxBlack to IfxLime
     }
 
     Surface(
@@ -1485,11 +1528,12 @@ private fun ProfileAvatarButton(
         shape = CircleShape,
         color = if (loadedBitmap != null) Color.White else toneBg,
         shadowElevation = 2.dp,
-        border = BorderStroke(
-            width = 1.2.dp,
-            color = if (loadedBitmap != null) IfxBlack.copy(alpha = 0.14f) else IfxBlack.copy(alpha = 0.18f)
-        ),
-        modifier = modifier.size(44.dp)
+        border = if (loadedBitmap != null || studioAvatarIndex != 0) {
+            BorderStroke(1.2.dp, IfxBlack.copy(alpha = 0.16f))
+        } else {
+            null
+        },
+        modifier = modifier.size(46.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1505,65 +1549,13 @@ private fun ProfileAvatarButton(
                         .clip(CircleShape)
                 )
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(3.dp)
-                        .clip(CircleShape)
-                        .border(1.dp, toneRing, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initialsPlaceholder.take(2).uppercase(),
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        letterSpacing = 0.4.sp,
-                        color = toneFg
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Refined Top-Right Notification Button:
- * Clean architectural circle, crisp outline vector bell, and minimal knockout unread indicator dot.
- */
-@Composable
-private fun NotificationBellButton(
-    unreadCount: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = Color.White,
-        shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFE2E6EC)),
-        modifier = modifier.size(44.dp)
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            SparkGlyphVector(
-                iconKind = SparkIconKind.BELL_ALERT,
-                tint = IfxBlack,
-                modifier = Modifier.size(20.dp)
-            )
-
-            if (unreadCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 9.dp, end = 9.dp)
-                        .size(9.dp)
-                        .clip(CircleShape)
-                        .background(IfxBlack)
-                        .border(1.5.dp, Color.White, CircleShape)
+                Text(
+                    text = initialsPlaceholder.take(2).uppercase(),
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    letterSpacing = 0.4.sp,
+                    color = toneFg
                 )
             }
         }
@@ -1571,176 +1563,314 @@ private fun NotificationBellButton(
 }
 
 /**
- * State 1: Empty State ("Create your first Spark") matching Photo 2.
+ * Refined Top-Right Notification Button:
+ * Crisp white circle with 1.2.dp Ink Black border, outline vector bell, and Electric Lime unread dot perched on rim.
+ */
+@Composable
+private fun NotificationBellButton(
+    unreadCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.size(46.dp)) {
+        Surface(
+            onClick = onClick,
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 1.dp,
+            border = BorderStroke(1.2.dp, IfxBlack),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                SparkGlyphVector(
+                    iconKind = SparkIconKind.BELL_ALERT,
+                    tint = IfxBlack,
+                    modifier = Modifier.size(21.dp)
+                )
+            }
+        }
+
+        if (unreadCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 1.dp, end = 1.dp)
+                    .size(11.dp)
+                    .clip(CircleShape)
+                    .background(IfxLime)
+                    .border(1.4.dp, IfxBlack, CircleShape)
+            )
+        }
+    }
+}
+
+/**
+ * State 1: Empty State ("Create your first Spark") with dark hero schematic card
+ * and stacked asymmetric leaf-corner quick-start template pills.
  */
 @Composable
 private fun HomeEmptyStateSection(
+    onHeroCreateClick: () -> Unit,
     onPresetChipClick: (presetId: String, presetTitle: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 34.dp, bottom = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(top = 4.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.Start
     ) {
-        EmptySparkSchematicIllustration(
-            modifier = Modifier.size(width = 160.dp, height = 132.dp)
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Text(
-            text = "Create your first Spark",
-            fontFamily = Inter,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 23.sp,
-            letterSpacing = (-0.4).sp,
+        // Dark Hero Empty Card (tappable to launch AI Spark Creator)
+        Surface(
+            onClick = onHeroCreateClick,
+            shape = RoundedCornerShape(28.dp),
             color = IfxBlack,
-            textAlign = TextAlign.Center
-        )
+            shadowElevation = 8.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Subtle architectural dark-olive tonal arc in the top-right corner
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    drawCircle(
+                        color = Color(0xFF212614),
+                        radius = 78.dp.toPx(),
+                        center = Offset(size.width - 14.dp.toPx(), 18.dp.toPx())
+                    )
+                }
 
-        Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 24.dp)
+                ) {
+                    EmptySparkHeroSchematic(
+                        modifier = Modifier
+                            .width(196.dp)
+                            .height(38.dp)
+                    )
 
-        Text(
-            text = "Say a routine in plain words and Gemini drafts\nit for you.",
-            fontFamily = Inter,
-            fontWeight = FontWeight.Normal,
-            fontSize = 15.sp,
-            lineHeight = 22.sp,
-            color = Color(0xFF686D76),
-            textAlign = TextAlign.Center
-        )
+                    Spacer(modifier = Modifier.height(22.dp))
+
+                    Text(
+                        text = "Create your\nfirst Spark",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 30.sp,
+                        lineHeight = 34.sp,
+                        letterSpacing = (-1.0).sp,
+                        color = Color.White
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Say a routine in plain words and Gemini drafts it for you.",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 14.5.sp,
+                        lineHeight = 21.sp,
+                        color = Color(0xFFB3B8C2)
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Text(
+            text = "OR START FROM A TEMPLATE",
+            fontFamily = Inter,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 11.5.sp,
+            letterSpacing = 1.1.sp,
+            color = Color(0xFF4B525E)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.Start
         ) {
-            PresetRoutineChip(
+            TemplateLeafPill(
                 label = "Deadline Email",
+                iconKind = SparkIconKind.MAIL_DEADLINE,
+                containerColor = IfxLime,
+                labelColor = IfxBlack,
+                iconCircleColor = IfxBlack,
+                iconTint = IfxLime,
+                border = null,
                 onClick = { onPresetChipClick("deadline_email", "Deadline Email") }
             )
-            PresetRoutineChip(
+            TemplateLeafPill(
                 label = "Morning Briefing",
+                iconKind = SparkIconKind.SUN_BRIEFING,
+                containerColor = IfxBlack,
+                labelColor = Color.White,
+                iconCircleColor = IfxLime,
+                iconTint = IfxBlack,
+                border = null,
                 onClick = { onPresetChipClick("morning_briefing", "Morning Briefing") }
             )
+            TemplateLeafPill(
+                label = "Weekly Review",
+                iconKind = SparkIconKind.CALENDAR_EVENT,
+                containerColor = Color.White,
+                labelColor = IfxBlack,
+                iconCircleColor = IfxLime,
+                iconTint = IfxBlack,
+                border = BorderStroke(1.2.dp, IfxBlack),
+                onClick = { onPresetChipClick("weekly_review", "Weekly Review") }
+            )
         }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        PresetRoutineChip(
-            label = "Weekly Review",
-            onClick = { onPresetChipClick("weekly_review", "Weekly Review") }
-        )
     }
 }
 
 @Composable
-private fun PresetRoutineChip(
+private fun TemplateLeafPill(
     label: String,
+    iconKind: SparkIconKind,
+    containerColor: Color,
+    labelColor: Color,
+    iconCircleColor: Color,
+    iconTint: Color,
+    border: BorderStroke?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = Color.White,
-        shadowElevation = 3.dp,
-        border = BorderStroke(1.dp, Color(0xFF8E95A0)),
-        modifier = modifier.height(44.dp)
+        shape = RoundedCornerShape(
+            topStart = 26.dp,
+            topEnd = 26.dp,
+            bottomEnd = 26.dp,
+            bottomStart = 6.dp
+        ),
+        color = containerColor,
+        border = border,
+        shadowElevation = if (containerColor == Color.White) 1.dp else 2.dp,
+        modifier = modifier.height(52.dp)
     ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(start = 9.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(iconCircleColor),
+                contentAlignment = Alignment.Center
+            ) {
+                SparkGlyphVector(
+                    iconKind = iconKind,
+                    tint = iconTint,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
             Text(
                 text = label,
                 fontFamily = Inter,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.5.sp,
-                color = IfxBlack
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 15.5.sp,
+                letterSpacing = (-0.2).sp,
+                color = labelColor
             )
         }
     }
 }
 
 @Composable
-private fun EmptySparkSchematicIllustration(modifier: Modifier = Modifier) {
+private fun EmptySparkHeroSchematic(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val strokeColor = Color(0xFFC5C9D0)
-        val strokeWidth = 3.dp.toPx()
+        val cy = size.height / 2f
+        val strokeWidth = 2.dp.toPx()
 
-        val startCircleCenter = Offset(size.width * 0.20f, size.height * 0.14f)
-        val circleRadius = 11.dp.toPx()
-        val cornerX = size.width * 0.72f
-        val cornerY = startCircleCenter.y
-        val diamondCenterY = size.height * 0.50f
-        val diamondHalf = 19.dp.toPx()
-        val crossCenterY = size.height * 0.86f
-        val crossHalf = 9.dp.toPx()
-
+        // 1. Trigger Node: Solid Electric Lime Circle
+        val circleRadius = 15.dp.toPx()
+        val c1X = circleRadius + 1.dp.toPx()
         drawCircle(
-            color = strokeColor,
+            color = IfxLime,
             radius = circleRadius,
-            center = startCircleCenter
+            center = Offset(c1X, cy)
         )
 
-        val connectorPath = Path().apply {
-            moveTo(startCircleCenter.x + circleRadius, cornerY)
-            lineTo(cornerX, cornerY)
-            lineTo(cornerX, diamondCenterY - diamondHalf)
-        }
-        drawPath(
-            path = connectorPath,
-            color = strokeColor,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        // 2. Condition Node: Outlined Electric Lime Diamond
+        val dR = 14.5.dp.toPx()
+        val dX = size.width * 0.49f
+
+        // Connector 1 -> 2
+        drawLine(
+            color = IfxLime,
+            start = Offset(c1X + circleRadius, cy),
+            end = Offset(dX - dR, cy),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
         )
 
-        val diamondPath = Path().apply {
-            moveTo(cornerX, diamondCenterY - diamondHalf)
-            lineTo(cornerX + diamondHalf, diamondCenterY)
-            lineTo(cornerX, diamondCenterY + diamondHalf)
-            lineTo(cornerX - diamondHalf, diamondCenterY)
+        val diamond = Path().apply {
+            moveTo(dX, cy - dR)
+            lineTo(dX + dR, cy)
+            lineTo(dX, cy + dR)
+            lineTo(dX - dR, cy)
             close()
         }
         drawPath(
-            path = diamondPath,
-            color = strokeColor,
+            path = diamond,
+            color = IfxLime,
             style = Stroke(width = strokeWidth, join = StrokeJoin.Round)
         )
 
-        val bottomLineEnd = crossCenterY - 2.dp.toPx()
+        // 3. Action Node: Dashed Electric Lime Rounded Square with '+'
+        val sqSize = 29.dp.toPx()
+        val sqX = size.width - sqSize - 2.dp.toPx()
+        val sqY = cy - sqSize / 2f
+
+        // Connector 2 -> 3
         drawLine(
-            color = strokeColor,
-            start = Offset(cornerX, diamondCenterY + diamondHalf),
-            end = Offset(cornerX, bottomLineEnd),
+            color = IfxLime,
+            start = Offset(dX + dR, cy),
+            end = Offset(sqX, cy),
             strokeWidth = strokeWidth,
             cap = StrokeCap.Round
         )
 
+        drawRoundRect(
+            color = IfxLime,
+            topLeft = Offset(sqX, sqY),
+            size = Size(sqSize, sqSize),
+            cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx()),
+            style = Stroke(
+                width = 1.7.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+            )
+        )
+
+        val plusHalf = 4.5.dp.toPx()
+        val plusCx = sqX + sqSize / 2f
         drawLine(
-            color = strokeColor,
-            start = Offset(cornerX - crossHalf, crossCenterY - crossHalf),
-            end = Offset(cornerX + crossHalf, crossCenterY + crossHalf),
-            strokeWidth = strokeWidth,
+            color = IfxLime,
+            start = Offset(plusCx - plusHalf, cy),
+            end = Offset(plusCx + plusHalf, cy),
+            strokeWidth = 2.dp.toPx(),
             cap = StrokeCap.Round
         )
         drawLine(
-            color = strokeColor,
-            start = Offset(cornerX + crossHalf, crossCenterY - crossHalf),
-            end = Offset(cornerX - crossHalf, crossCenterY + crossHalf),
-            strokeWidth = strokeWidth,
+            color = IfxLime,
+            start = Offset(plusCx, cy - plusHalf),
+            end = Offset(plusCx, cy + plusHalf),
+            strokeWidth = 2.dp.toPx(),
             cap = StrokeCap.Round
         )
     }
 }
 
 /**
- * State 2: Specialized User Preferences State ("Your Sparks") with individual 3D elevated cards,
- * clean semantic IFX tile icons (`ic_tile_mail`, `ic_tile_bell`, `ic_tile_notebook`, `ic_tile_cal`),
- * and Electric Lime selection state.
+ * State 2: Populated Home Sparks Section with clean editorial header and high-contrast IFX cards.
  */
 @Composable
 private fun HomeSpecializedSparksSection(
@@ -1755,53 +1885,32 @@ private fun HomeSpecializedSparksSection(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = categoryTitle,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 22.sp,
-                    letterSpacing = (-0.5).sp,
-                    color = IfxBlack
-                )
+            Text(
+                text = categoryTitle,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 24.sp,
+                lineHeight = 28.sp,
+                letterSpacing = (-0.6).sp,
+                color = IfxBlack
+            )
 
-                // Clean, crisp monochrome capsule count matching the category tabs
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Color(0xFF111317))
-                        .padding(horizontal = 11.dp, vertical = 3.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "${sparks.size}",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = Color.White
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = categoryRecommendation,
                 fontFamily = Inter,
                 fontWeight = FontWeight.Normal,
-                fontSize = 13.sp,
-                color = Color(0xFF686D76)
+                fontSize = 14.sp,
+                color = Color(0xFF525866)
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         if (sparks.isEmpty()) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(28.dp),
                 color = Color.White,
                 border = BorderStroke(1.2.dp, Color(0xFFE4E7EC)),
                 modifier = Modifier.fillMaxWidth()
@@ -1809,7 +1918,7 @@ private fun HomeSpecializedSparksSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 26.dp),
+                        .padding(horizontal = 20.dp, vertical = 28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -1849,12 +1958,13 @@ private fun HomeSpecializedSparksSection(
             }
         } else {
             Column(
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                sparks.forEach { spark ->
+                sparks.forEachIndexed { index, spark ->
                     val isSelected = spark.id == selectedSparkId
                     Spark3DCard(
                         spark = spark,
+                        cardIndex = index,
                         isSelected = isSelected,
                         onClick = { onSparkClick(spark) },
                         onToggle = { enabled -> onSparkToggle(spark, enabled) }
@@ -1865,181 +1975,235 @@ private fun HomeSpecializedSparksSection(
     }
 }
 
+private enum class HomeCardVisualTone {
+    LIME,
+    DARK,
+    LIGHT
+}
+
 /**
- * Editorial Home Spark Card inspired by clean stacked-icon workflow cards:
- * - Soft, cohesive topic background surface (`spark.topic.heroBg`) with generous `28.dp` corners.
- * - Left vertical rail of circular white service icon badges (trigger + action icons).
- * - Right editorial column: bold title, concise 2-3 line summary, circular black live counter
- *   (`Used 1428` / `Runs 1`), and tactile `Start ▷` / `Running` pill button.
+ * Editorial High-Contrast IFX Spark Card:
+ * - Alternating bold Electric Lime, Deep Ink Black, and Crisp White card surfaces.
+ * - Top row: Overlapping horizontal circular service icons + bold `N STEPS` capsule pill.
+ * - Middle: ExtraBold title + concise 2-3 line summary.
+ * - Bottom: Stacked `USED` / `RUNS` live counter with formatted number + wide tactile `Active`/`Start` pill.
  */
 @Composable
 private fun Spark3DCard(
     spark: SparkRoutineItem,
+    cardIndex: Int,
     isSelected: Boolean,
     onClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val topic = spark.topic
-    val isDarkCard = topic == SparkTopic.NIGHT
+    val cardTone = when {
+        spark.topic == SparkTopic.NIGHT -> HomeCardVisualTone.DARK
+        cardIndex % 3 == 0 -> HomeCardVisualTone.LIME
+        cardIndex % 3 == 1 -> HomeCardVisualTone.DARK
+        else -> HomeCardVisualTone.LIGHT
+    }
+    val isDarkCard = cardTone == HomeCardVisualTone.DARK
+
+    val cardBg = when (cardTone) {
+        HomeCardVisualTone.LIME -> IfxLime
+        HomeCardVisualTone.DARK -> IfxBlack
+        HomeCardVisualTone.LIGHT -> Color.White
+    }
+    val titleColor = if (isDarkCard) Color.White else IfxBlack
+    val descColor = when (cardTone) {
+        HomeCardVisualTone.LIME -> IfxBlack.copy(alpha = 0.78f)
+        HomeCardVisualTone.DARK -> Color(0xFFB5BAC4)
+        HomeCardVisualTone.LIGHT -> Color(0xFF4B525E)
+    }
+    val microLabelColor = when (cardTone) {
+        HomeCardVisualTone.LIME -> IfxBlack.copy(alpha = 0.65f)
+        HomeCardVisualTone.DARK -> Color(0xFF8C93A0)
+        HomeCardVisualTone.LIGHT -> Color(0xFF686D76)
+    }
+    val badgeBg = when (cardTone) {
+        HomeCardVisualTone.LIME -> Color.White
+        HomeCardVisualTone.DARK -> IfxLime
+        HomeCardVisualTone.LIGHT -> IfxLime
+    }
+    val stepsBg = if (isDarkCard) IfxLime else IfxBlack
+    val stepsText = if (isDarkCard) IfxBlack else IfxLime
 
     val cardBorderColor by animateColorAsState(
         targetValue = when {
+            cardTone == HomeCardVisualTone.LIGHT && isSelected -> IfxBlack
+            cardTone == HomeCardVisualTone.LIGHT -> IfxBlack.copy(alpha = 0.85f)
             isSelected && isDarkCard -> IfxLime
             isSelected -> IfxBlack
-            isDarkCard -> Color.White.copy(alpha = 0.16f)
-            else -> IfxBlack.copy(alpha = 0.12f)
+            else -> Color.Transparent
         },
         animationSpec = tween(durationMillis = 200),
         label = "sparkCardBorderColor"
     )
     val cardElevation by animateDpAsState(
-        targetValue = if (isSelected) 10.dp else 5.dp,
+        targetValue = if (isSelected) 8.dp else 3.dp,
         animationSpec = tween(durationMillis = 200),
         label = "sparkCardElevation"
     )
 
-    val stackIcons = remember(spark.primaryIcon, spark.actionIcon, spark.actions, spark.actionTemplates) {
+    val resolvedActionCount = remember(spark.actions, spark.actionTemplates) {
+        spark.resolvedActions().size.coerceAtLeast(1)
+    }
+    val stepCount = 1 + resolvedActionCount
+    val stepsLabel = if (stepCount == 1) "1 STEP" else "$stepCount STEPS"
+
+    val stackIcons = remember(spark.primaryIcon, spark.actionIcon, resolvedActionCount) {
         val list = mutableListOf(spark.primaryIcon, spark.actionIcon)
-        if (spark.resolvedActions().size > 1) {
+        if (resolvedActionCount > 1) {
             list.add(SparkIconKind.NOTEBOOK_PAGE)
         }
         list
     }
 
-    val counterLabel = if (spark.isOfficial) "Used" else "Runs"
-    val counterNumber = if (spark.isOfficial) {
-        spark.activeUsersCount.toString()
-    } else {
-        spark.totalRunsCount.toString()
+    val counterLabel = if (spark.isOfficial) "USED" else "RUNS"
+    val rawCounter = if (spark.isOfficial) spark.activeUsersCount else spark.totalRunsCount
+    val formattedCounter = remember(rawCounter) {
+        NumberFormat.getIntegerInstance(Locale.US).format(rawCounter)
     }
 
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(28.dp),
-        color = topic.heroBg,
+        color = cardBg,
         shadowElevation = cardElevation,
-        border = BorderStroke(
-            width = if (isSelected) 1.8.dp else 1.2.dp,
-            color = cardBorderColor
-        ),
+        border = if (cardBorderColor != Color.Transparent) {
+            BorderStroke(
+                width = if (isSelected) 1.8.dp else 1.3.dp,
+                color = cardBorderColor
+            )
+        } else {
+            null
+        },
         modifier = modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.Top
+                .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
-            // Left Column: Vertical stack of crisp white circular icon badges
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // Top Row: Overlapping horizontal circular service icons + bold N STEPS pill
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                stackIcons.forEach { glyph ->
-                    SparkCircularIconBadge(iconKind = glyph)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy((-8).dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    stackIcons.forEach { glyph ->
+                        SparkCircularIconBadge(
+                            iconKind = glyph,
+                            containerColor = badgeBg,
+                            ringColor = cardBg
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(stepsBg)
+                        .padding(horizontal = 13.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stepsLabel,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.8.sp,
+                        color = stepsText
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Right Column: Headline, Description, and Bottom ("Used" circle + "Start ▷" pill)
-            Column(
-                modifier = Modifier.weight(1f)
+            // Middle: Bold Headline + Clean Summary
+            Text(
+                text = spark.title,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 23.sp,
+                lineHeight = 27.sp,
+                letterSpacing = (-0.6).sp,
+                color = titleColor,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(7.dp))
+
+            Text(
+                text = spark.about,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                color = descColor,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Bottom Row: Live Countable Metric + Full-Width Active/Start Toggle Pill
+            val counterScale = remember(spark.id) { Animatable(1f) }
+            LaunchedEffect(rawCounter) {
+                counterScale.snapTo(1.14f)
+                counterScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = spark.title,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp,
-                    lineHeight = 24.sp,
-                    letterSpacing = (-0.5).sp,
-                    color = topic.heroContent,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = spark.about,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    color = topic.heroSubtle,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                val counterScale = remember(spark.id) { Animatable(1f) }
-                LaunchedEffect(counterNumber) {
-                    counterScale.snapTo(1.16f)
-                    counterScale.animateTo(
-                        targetValue = 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        )
+                Column(
+                    modifier = Modifier.graphicsLayer(
+                        scaleX = counterScale.value,
+                        scaleY = counterScale.value
                     )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Circular Dark Counter Badge ("Used\n1428") with tactile spring pop on increment
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .graphicsLayer(
-                                scaleX = counterScale.value,
-                                scaleY = counterScale.value
-                            )
-                            .clip(CircleShape)
-                            .background(if (isDarkCard) Color(0xFF0E1015) else IfxBlack)
-                            .border(
-                                width = 1.dp,
-                                color = if (isDarkCard) Color.White.copy(alpha = 0.22f) else Color.Transparent,
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = counterLabel,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 9.5.sp,
-                                lineHeight = 11.sp,
-                                color = Color.White.copy(alpha = 0.72f)
-                            )
-                            Text(
-                                text = counterNumber,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp,
-                                color = Color.White,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    // Tactile "Start ▷" -> IFX Signal-Flow Ignition -> Live "Active" Pill Button
-                    SparkCardActionPill(
-                        enabled = spark.enabled,
-                        isDarkCard = isDarkCard,
-                        onToggle = { targetEnabled -> onToggle(targetEnabled) },
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = counterLabel,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.9.sp,
+                        color = microLabelColor
+                    )
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = formattedCounter,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 21.sp,
+                        lineHeight = 24.sp,
+                        letterSpacing = (-0.6).sp,
+                        color = titleColor,
+                        maxLines = 1
                     )
                 }
+
+                SparkCardActionPill(
+                    enabled = spark.enabled,
+                    isDarkCard = isDarkCard,
+                    onToggle = { targetEnabled -> onToggle(targetEnabled) },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -2048,33 +2212,34 @@ private fun Spark3DCard(
 @Composable
 private fun SparkCircularIconBadge(
     iconKind: SparkIconKind,
+    containerColor: Color = Color.White,
+    ringColor: Color = Color.Transparent,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = CircleShape,
-        color = Color.White,
-        shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, IfxBlack.copy(alpha = 0.08f)),
-        modifier = modifier.size(46.dp)
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(containerColor)
+            .border(
+                width = 2.dp,
+                color = ringColor,
+                shape = CircleShape
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            SparkGlyphVector(
-                iconKind = iconKind,
-                tint = IfxBlack,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        SparkGlyphVector(
+            iconKind = iconKind,
+            tint = IfxBlack,
+            modifier = Modifier.size(19.dp)
+        )
     }
 }
 
 /**
  * Signature IFX Automation Ignition Pill:
- * - Tapping "Start ▷" fires a 540ms IFX node-flow signal sweep (`● ━━ ◇ ━━ ✓`) across the pill,
- *   lighting each automation node sequentially as the signal travels left-to-right before locking
- *   into the live pulsing "Active" state.
+ * - Tapping "Start" fires the 1050ms IFX node-flow signal sweep (`● ━━ ◇ ━━ ✓`) across the pill,
+ *   lighting each automation node sequentially before locking into the high-contrast "Active" toggle bar.
  */
 @Composable
 private fun SparkCardActionPill(
@@ -2098,6 +2263,7 @@ private fun SparkCardActionPill(
             isIgniting -> IfxBlack
             enabled && isDarkCard -> IfxLime
             enabled -> IfxBlack
+            isDarkCard -> Color(0xFF1A1D22)
             else -> Color.White
         },
         animationSpec = tween(220),
@@ -2108,10 +2274,31 @@ private fun SparkCardActionPill(
             isIgniting -> IfxLime
             enabled && isDarkCard -> IfxBlack
             enabled -> Color.White
+            isDarkCard -> Color.White
             else -> IfxBlack
         },
         animationSpec = tween(220),
         label = "sparkActionPillContent"
+    )
+    val thumbBg by animateColorAsState(
+        targetValue = when {
+            enabled && isDarkCard -> IfxBlack
+            enabled -> IfxLime
+            isDarkCard -> Color(0xFF2B2F38)
+            else -> Color(0xFFF1F3F5)
+        },
+        animationSpec = tween(220),
+        label = "sparkActionThumbBg"
+    )
+    val thumbGlyph by animateColorAsState(
+        targetValue = when {
+            enabled && isDarkCard -> IfxLime
+            enabled -> IfxBlack
+            isDarkCard -> Color.White
+            else -> IfxBlack
+        },
+        animationSpec = tween(220),
+        label = "sparkActionThumbGlyph"
     )
 
     Surface(
@@ -2134,13 +2321,18 @@ private fun SparkCardActionPill(
         },
         shape = CircleShape,
         color = pillBg,
-        shadowElevation = if (enabled || isIgniting) 3.dp else 1.dp,
+        shadowElevation = if (enabled || isIgniting) 2.dp else 0.dp,
         border = BorderStroke(
-            width = 1.dp,
-            color = if (enabled || isIgniting) Color.Transparent else IfxBlack.copy(alpha = 0.08f)
+            width = 1.2.dp,
+            color = when {
+                isIgniting -> IfxLime.copy(alpha = 0.45f)
+                enabled -> Color.Transparent
+                isDarkCard -> Color.White.copy(alpha = 0.2f)
+                else -> IfxBlack.copy(alpha = 0.22f)
+            }
         ),
         modifier = modifier
-            .height(48.dp)
+            .height(50.dp)
             .graphicsLayer(scaleX = pillScale, scaleY = pillScale)
     ) {
         Box(
@@ -2236,79 +2428,67 @@ private fun SparkCardActionPill(
                 }
             } else {
                 Row(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 20.dp, end = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = if (enabled) "Active" else "Start",
                         fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 15.5.sp,
+                        letterSpacing = (-0.2).sp,
                         color = pillContent
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    if (enabled) {
-                        ActiveLivePulseDot(dotColor = if (isDarkCard) IfxBlack else IfxLime)
-                    } else {
-                        // Crisp outlined play triangle matching "Start ▷"
-                        Canvas(modifier = Modifier.size(14.dp)) {
-                            val path = Path().apply {
-                                moveTo(size.width * 0.22f, size.height * 0.14f)
-                                lineTo(size.width * 0.86f, size.height * 0.50f)
-                                lineTo(size.width * 0.22f, size.height * 0.86f)
-                                close()
-                            }
-                            drawPath(
-                                path = path,
-                                color = pillContent,
-                                style = Stroke(
-                                    width = 1.9.dp.toPx(),
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round
+
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(thumbBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (enabled) {
+                            Canvas(modifier = Modifier.size(14.dp)) {
+                                val check = Path().apply {
+                                    moveTo(size.width * 0.14f, size.height * 0.52f)
+                                    lineTo(size.width * 0.42f, size.height * 0.80f)
+                                    lineTo(size.width * 0.88f, size.height * 0.22f)
+                                }
+                                drawPath(
+                                    path = check,
+                                    color = thumbGlyph,
+                                    style = Stroke(
+                                        width = 2.2.dp.toPx(),
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    )
                                 )
-                            )
+                            }
+                        } else {
+                            Canvas(modifier = Modifier.size(13.dp)) {
+                                val play = Path().apply {
+                                    moveTo(size.width * 0.24f, size.height * 0.14f)
+                                    lineTo(size.width * 0.88f, size.height * 0.50f)
+                                    lineTo(size.width * 0.24f, size.height * 0.86f)
+                                    close()
+                                }
+                                drawPath(
+                                    path = play,
+                                    color = thumbGlyph,
+                                    style = Stroke(
+                                        width = 1.9.dp.toPx(),
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    )
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ActiveLivePulseDot(
-    dotColor: Color,
-    modifier: Modifier = Modifier
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "activeLivePulse")
-    val radarPhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "activeRadarPhase"
-    )
-
-    Box(
-        modifier = modifier.size(18.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val c = Offset(size.width / 2f, size.height / 2f)
-            drawCircle(
-                color = dotColor.copy(alpha = (1f - radarPhase) * 0.55f),
-                radius = (4.dp.toPx() + radarPhase * 5.dp.toPx()),
-                center = c,
-                style = Stroke(width = 1.5.dp.toPx())
-            )
-            drawCircle(
-                color = dotColor,
-                radius = 4.2.dp.toPx(),
-                center = c
-            )
         }
     }
 }
@@ -2320,19 +2500,19 @@ private fun NewSparkFab(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(22.dp),
+        shape = CircleShape,
         color = IfxLime,
-        shadowElevation = 10.dp,
+        shadowElevation = 8.dp,
         border = BorderStroke(1.5.dp, IfxBlack),
-        modifier = modifier.height(58.dp)
+        modifier = modifier.height(54.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Canvas(modifier = Modifier.size(18.dp)) {
-                val stroke = 2.5.dp.toPx()
+            Canvas(modifier = Modifier.size(16.dp)) {
+                val stroke = 2.4.dp.toPx()
                 drawLine(
                     color = IfxBlack,
                     start = Offset(size.width / 2f, 0f),
@@ -2353,7 +2533,7 @@ private fun NewSparkFab(
                 text = "New Spark",
                 fontFamily = Inter,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.5.sp,
+                fontSize = 15.5.sp,
                 letterSpacing = (-0.2).sp,
                 color = IfxBlack
             )

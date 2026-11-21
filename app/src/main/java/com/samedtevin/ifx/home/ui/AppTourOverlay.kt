@@ -5,9 +5,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,10 +30,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -61,52 +67,37 @@ object AppTourCatalog {
             index = 0,
             targetTab = HomeNavTab.HOME,
             category = "HOME",
-            title = "Start with plain English",
-            description = "Type or speak any routine in the black Gemini prompt bar at the top—ifx drafts the entire Spark for you.",
-            showSampleSparksOnHome = false
-        ),
-        AppTourStep(
-            index = 1,
-            targetTab = HomeNavTab.HOME,
-            category = "YOUR SPARKS",
-            title = "Manage & create Sparks",
-            description = "Tap any Spark card to select it, switch it on or off anytime, or tap + New Spark to create a new automation.",
+            title = "Your Sparks at a glance",
+            description = "Switch any Spark on or off with one tap, browse curated categories, or tap + New Spark to draft a routine with Gemini.",
             showSampleSparksOnHome = true
         ),
         AppTourStep(
-            index = 2,
-            targetTab = HomeNavTab.PROJECTS,
-            category = "PROJECTS",
-            title = "Organize by project",
-            description = "Group related Sparks into Projects like Study, Work, or Travel so you can manage or pause entire workflows together."
-        ),
-        AppTourStep(
-            index = 3,
+            index = 1,
             targetTab = HomeNavTab.BUILDER,
             category = "BUILDER",
             title = "Edit visually & dry-run",
-            description = "Fine-tune Triggers, Conditions, and Actions step-by-step and test with mock data before your Spark goes live."
+            description = "Fine-tune Triggers, Conditions, and Actions on the interactive canvas and dry-run with sample inputs before going live."
         ),
         AppTourStep(
-            index = 4,
+            index = 2,
             targetTab = HomeNavTab.NOTEBOOK,
             category = "NOTEBOOK",
             title = "Auto-saved smart notes",
-            description = "Every deadline summary, meeting brief, and weekly digest saved by your Sparks lands here automatically."
+            description = "Every deadline summary, morning brief, and weekly digest saved by your Sparks lands here automatically."
         ),
         AppTourStep(
-            index = 5,
+            index = 3,
             targetTab = HomeNavTab.HISTORY,
-            category = "HISTORY & PROFILE",
-            title = "Track runs & customize profile",
-            description = "Inspect every Spark run trace in History, and tap your avatar at the top-left anytime for profile photo, permissions, or settings."
+            category = "HISTORY",
+            title = "Track runs & customize",
+            description = "Inspect every Spark execution trace in History, and tap your avatar at the top-left anytime for profile, permissions, or settings."
         )
     )
 }
 
 /**
- * First-time newcomer invitation dialog: "Would you like to tour the app?"
- * Tapping "Skip" immediately sets `app_tour_skipped = true` in DataStore so it never shows again.
+ * First-time newcomer invitation dialog: "Welcome, [Name]! Would you like a quick tour?"
+ * Uses IFX's own `ic_ifx_squircle` brand mark, Electric Lime name highlight, and asymmetric stop pills.
  */
 @Composable
 fun AppTourInviteDialog(
@@ -122,111 +113,285 @@ fun AppTourInviteDialog(
         )
     ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(32.dp),
             color = Color.White,
-            border = BorderStroke(1.5.dp, IfxBlack),
-            shadowElevation = 12.dp,
+            shadowElevation = 18.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(24.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 24.dp)
             ) {
+                // Top Row: IFX Brand Mark (replacing generic star icon) + Soft Circular Close Button
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_ifx_squircle),
                         contentDescription = "ifx",
-                        modifier = Modifier.size(40.dp)
-                    )
-                    Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(IfxLime)
-                            .border(1.dp, IfxBlack, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .size(50.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                    )
+
+                    Surface(
+                        onClick = onSkip,
+                        shape = CircleShape,
+                        color = Color(0xFFF3F5F0),
+                        modifier = Modifier.size(44.dp)
                     ) {
-                        Text(
-                            text = "QUICK TOUR · 30 SEC",
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 10.5.sp,
-                            letterSpacing = 0.7.sp,
-                            color = IfxBlack
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Canvas(modifier = Modifier.size(13.dp)) {
+                                val stroke = 2.dp.toPx()
+                                drawLine(
+                                    color = IfxBlack,
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, size.height),
+                                    strokeWidth = stroke,
+                                    cap = StrokeCap.Round
+                                )
+                                drawLine(
+                                    color = IfxBlack,
+                                    start = Offset(size.width, 0f),
+                                    end = Offset(0f, size.height),
+                                    strokeWidth = stroke,
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
+                // Stacked Headline: "Welcome," + "[Name]!" with Electric Lime highlight
                 Text(
-                    text = "Welcome, $userName!\nWould you like a quick tour?",
+                    text = "Welcome,",
                     fontFamily = Inter,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 22.sp,
-                    lineHeight = 28.sp,
-                    letterSpacing = (-0.5).sp,
+                    fontSize = 34.sp,
+                    lineHeight = 38.sp,
+                    letterSpacing = (-1.1).sp,
                     color = IfxBlack
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(IfxLime)
+                            .padding(horizontal = 12.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = userName.ifBlank { "Friend" },
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 34.sp,
+                            lineHeight = 38.sp,
+                            letterSpacing = (-1.1).sp,
+                            color = IfxBlack,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = "!",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 34.sp,
+                        lineHeight = 38.sp,
+                        letterSpacing = (-1.0).sp,
+                        color = IfxBlack,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "We'll walk you through Home, Projects, Builder, Notebook, and History one by one so you know where everything lives. You can skip anytime.",
+                    text = "Would you like a quick tour?",
                     fontFamily = Inter,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFF4B5563)
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 18.5.sp,
+                    lineHeight = 24.sp,
+                    letterSpacing = (-0.2).sp,
+                    color = Color(0xFF4B525E)
                 )
 
                 Spacer(modifier = Modifier.height(22.dp))
 
+                Text(
+                    text = "4 STOPS · ABOUT 30 SECONDS",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.1.sp,
+                    color = Color(0xFF525866)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 2x2 Asymmetric Leaf-Corner Tour Stop Pills
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TourStopPill(number = "1", label = "Home", isLime = true)
+                        TourStopPill(number = "2", label = "Builder", isLime = false)
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TourStopPill(number = "3", label = "Notebook", isLime = true)
+                        TourStopPill(number = "4", label = "History", isLime = false)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Primary CTA: Solid Black Capsule with Electric Lime text & crisp vector arrow
                 Button(
                     onClick = onStartTour,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = IfxLime,
-                        contentColor = IfxBlack
+                        containerColor = IfxBlack,
+                        contentColor = IfxLime
                     ),
-                    border = BorderStroke(1.5.dp, IfxBlack),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(horizontal = 24.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(56.dp)
                 ) {
                     Text(
-                        text = "Start guided tour",
+                        text = "Start the tour",
                         fontFamily = Inter,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp,
-                        color = IfxBlack
+                        fontSize = 16.sp,
+                        letterSpacing = (-0.2).sp,
+                        color = IfxLime
                     )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Canvas(modifier = Modifier.size(15.dp)) {
+                        val stroke = 2.2.dp.toPx()
+                        val cy = size.height / 2f
+                        drawLine(
+                            color = IfxLime,
+                            start = Offset(1.dp.toPx(), cy),
+                            end = Offset(size.width - 1.5.dp.toPx(), cy),
+                            strokeWidth = stroke,
+                            cap = StrokeCap.Round
+                        )
+                        val head = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(size.width * 0.56f, size.height * 0.22f)
+                            lineTo(size.width - 1.5.dp.toPx(), cy)
+                            lineTo(size.width * 0.56f, size.height * 0.78f)
+                        }
+                        drawPath(
+                            path = head,
+                            color = IfxLime,
+                            style = Stroke(
+                                width = stroke,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = onSkip,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = IfxBlack
-                    ),
-                    border = BorderStroke(1.2.dp, Color(0xFFD1D5DB)),
-                    shape = RoundedCornerShape(24.dp),
+                Text(
+                    text = "Maybe later",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    color = IfxBlack,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Text(
-                        text = "Skip, I'll explore on my own",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF4B5563)
-                    )
-                }
+                        .align(Alignment.CenterHorizontally)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onSkip)
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Replay it anytime from Settings.",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 12.5.sp,
+                    color = Color(0xFF686D76),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun TourStopPill(
+    number: String,
+    label: String,
+    isLime: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val pillBg = if (isLime) IfxLime else IfxBlack
+    val badgeBg = if (isLime) IfxBlack else IfxLime
+    val badgeText = if (isLime) IfxLime else IfxBlack
+    val labelColor = if (isLime) IfxBlack else Color.White
+
+    Surface(
+        shape = RoundedCornerShape(
+            topStart = 22.dp,
+            topEnd = 22.dp,
+            bottomEnd = 22.dp,
+            bottomStart = 6.dp
+        ),
+        color = pillBg,
+        modifier = modifier.height(42.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 6.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(badgeBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = number,
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 12.5.sp,
+                    color = badgeText
+                )
+            }
+            Text(
+                text = label,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.5.sp,
+                letterSpacing = (-0.2).sp,
+                color = labelColor
+            )
         }
     }
 }
@@ -234,7 +399,7 @@ fun AppTourInviteDialog(
 /**
  * Floating Coachmark Card displayed during the active Guided Tour.
  * Sits cleanly above the bottom navigation bar while the screen behind switches
- * to each real tab (`Home` -> `Projects` -> `Builder` -> `Notebook` -> `History`).
+ * to each real tab (`Home` -> `Builder` -> `Notebook` -> `History`).
  */
 @Composable
 fun AppTourCoachmarkCard(
@@ -249,10 +414,10 @@ fun AppTourCoachmarkCard(
     val isLast = step.index == totalSteps - 1
 
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(28.dp),
         color = IfxBlack,
         border = BorderStroke(1.5.dp, IfxLime),
-        shadowElevation = 14.dp,
+        shadowElevation = 16.dp,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -262,7 +427,7 @@ fun AppTourCoachmarkCard(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
-            // Top bar: Step badge + Skip link
+            // Top bar: Asymmetric leaf step badge + Skip link
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -270,13 +435,20 @@ fun AppTourCoachmarkCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 12.dp,
+                                    topEnd = 12.dp,
+                                    bottomEnd = 12.dp,
+                                    bottomStart = 4.dp
+                                )
+                            )
                             .background(IfxLime)
-                            .padding(horizontal = 9.dp, vertical = 3.dp)
+                            .padding(horizontal = 10.dp, vertical = 3.5.dp)
                     ) {
                         Text(
                             text = "${step.index + 1} / $totalSteps",
@@ -291,7 +463,7 @@ fun AppTourCoachmarkCard(
                         fontFamily = Inter,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 11.5.sp,
-                        letterSpacing = 0.8.sp,
+                        letterSpacing = 1.sp,
                         color = IfxLime
                     )
                 }
@@ -323,8 +495,8 @@ fun AppTourCoachmarkCard(
                         text = current.title,
                         fontFamily = Inter,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
-                        letterSpacing = (-0.3).sp,
+                        fontSize = 19.sp,
+                        letterSpacing = (-0.4).sp,
                         color = Color.White
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -333,7 +505,7 @@ fun AppTourCoachmarkCard(
                         fontFamily = Inter,
                         fontWeight = FontWeight.Normal,
                         fontSize = 13.5.sp,
-                        lineHeight = 19.sp,
+                        lineHeight = 19.5.sp,
                         color = Color(0xFFD1D5DB)
                     )
                 }
@@ -341,7 +513,7 @@ fun AppTourCoachmarkCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Compact step dots progress bar
+            // Compact step segments progress bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -374,11 +546,11 @@ fun AppTourCoachmarkCard(
                             containerColor = Color(0xFF1F2228),
                             contentColor = Color.White
                         ),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = CircleShape,
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         modifier = Modifier
                             .weight(0.8f)
-                            .height(44.dp)
+                            .height(46.dp)
                     ) {
                         Text(
                             text = "Back",
@@ -395,19 +567,47 @@ fun AppTourCoachmarkCard(
                         containerColor = IfxLime,
                         contentColor = IfxBlack
                     ),
-                    shape = RoundedCornerShape(18.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(horizontal = 18.dp),
                     modifier = Modifier
                         .weight(1.2f)
-                        .height(44.dp)
+                        .height(46.dp)
                 ) {
                     Text(
-                        text = if (isLast) "Finish tour" else "Next  ->",
+                        text = if (isLast) "Finish tour" else "Next",
                         fontFamily = Inter,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.5.sp,
                         color = IfxBlack
                     )
+                    if (!isLast) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Canvas(modifier = Modifier.size(13.dp)) {
+                            val stroke = 2.dp.toPx()
+                            val cy = size.height / 2f
+                            drawLine(
+                                color = IfxBlack,
+                                start = Offset(1.dp.toPx(), cy),
+                                end = Offset(size.width - 1.dp.toPx(), cy),
+                                strokeWidth = stroke,
+                                cap = StrokeCap.Round
+                            )
+                            val head = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(size.width * 0.56f, size.height * 0.22f)
+                                lineTo(size.width - 1.dp.toPx(), cy)
+                                lineTo(size.width * 0.56f, size.height * 0.78f)
+                            }
+                            drawPath(
+                                path = head,
+                                color = IfxBlack,
+                                style = Stroke(
+                                    width = stroke,
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
